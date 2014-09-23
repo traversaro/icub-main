@@ -19,17 +19,16 @@ before_script:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get update; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get --force-yes install icub-common; fi
   #install qt5.2 needed by the new yarp
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; set +x +e; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; TAR=qt-everywhere-opensource-src-5.3.1 ; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; wget http://download.qt-project.org/archive/qt/5.3/5.3.1/single/$TAR.tar.xz ; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; tar -xf $TAR.tar.xz; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; cd $TAR; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; NOFB="-no-directfb -no-linuxfb -no-eglfs -no-kms"; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; SQL="-no-sql-mysql -no-sql-sqlite"; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; NOSSE="-no-sse2 -no-sse3 -no-ssse3 -no-sse4.1 -no-sse4.2 -no-avx -no-avx2"; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; ./configure $CONF_PREFIX -nomake examples -nomake tests -opensource -confirm-license -no-gtkstyle -no-glib -no-cups -no-nis $SQL $NOFB $NOSSE; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; make module-qtquickcontrols -j5; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; sudo make install; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then export TAR=qt-everywhere-opensource-src-5.3.1 ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then wget http://download.qt-project.org/archive/qt/5.3/5.3.1/single/${TAR}.tar.xz ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then tar -xf ${TAR}.tar.xz; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then cd ${TAR}; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then export NOFB="-no-directfb -no-linuxfb -no-eglfs -no-kms"; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then export SQL="-no-sql-mysql -no-sql-sqlite"; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then export NOSSE="-no-sse2 -no-sse3 -no-ssse3 -no-sse4.1 -no-sse4.2 -no-avx -no-avx2"; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then ./configure -nomake examples -nomake tests -opensource -confirm-license -no-gtkstyle -no-glib -no-cups -no-nis ${SQL} ${NOFB} ${NOSSE}; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then make module-qtquickcontrols -j5; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo make install; fi
   #OS X dependencies
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then export XQUARTZ_VERSION=2.7.6;fi
   - if [ "$TRAVIS_OS_NAME" = "osx" ]; then curl -L -O http://xquartz.macosforge.org/downloads/SL/XQuartz-${XQUARTZ_VERSION}.dmg; fi
