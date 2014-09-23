@@ -19,8 +19,8 @@ before_script:
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get update; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; then sudo apt-get --force-yes install icub-common; fi
   #install qt5.2 needed by the new yarp
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; TAR=qt-everywhere-opensource-src-5.3.1; fi
-  - if [ "$TRAVIS_OS_NAME" = "linux" ]; wget http://download.qt-project.org/archive/qt/5.3/5.3.1/single/$TAR.tar.xz; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; TAR=qt-everywhere-opensource-src-5.3.1 ; fi
+  - if [ "$TRAVIS_OS_NAME" = "linux" ]; wget http://download.qt-project.org/archive/qt/5.3/5.3.1/single/$TAR.tar.xz ; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; tar -xf $TAR.tar.xz; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; cd $TAR; fi
   - if [ "$TRAVIS_OS_NAME" = "linux" ]; NOFB="-no-directfb -no-linuxfb -no-eglfs -no-kms"; fi
