@@ -27,10 +27,11 @@ bool CanBusAnalogSensor::open(yarp::os::Searchable& config)
     correct &= config.check("format");
     correct &= config.check("period");
     correct &= config.check("channels");
-    
+    correct &= config.check("physDevice");
+
     if (!correct)
     {
-        std::cerr<<"Error: insufficient parameters to CanBusAnalogSensor\n"; 
+        std::cerr<<"Error: insufficient parameters to CanBusAnalogSensor\n";
         return false;
     }
 
@@ -82,7 +83,7 @@ bool CanBusAnalogSensor::open(yarp::os::Searchable& config)
         this->dataFormat = ANALOG_FORMAT_8_BIT;
     else if (tmpFormat == 16)
         this->dataFormat = ANALOG_FORMAT_16_BIT;
-    else    
+    else
         this->dataFormat = ANALOG_FORMAT_ERR;
 
     //open the can mask for the specific canDeviceId
@@ -123,7 +124,7 @@ bool CanBusAnalogSensor::readFullScaleAnalog(int ch)
 
     long int timeout=0;
     bool full_scale_read=false;
-    do 
+    do
     {
         unsigned int max_messages=CAN_DRIVER_BUFFER_SIZE;
         unsigned int read_messages = 0;
@@ -148,8 +149,8 @@ bool CanBusAnalogSensor::readFullScaleAnalog(int ch)
     }
     while(timeout<32 && full_scale_read==false);
 
-    if (full_scale_read==false) 
-        {                            
+    if (full_scale_read==false)
+        {
             fprintf(stderr, "*** ERROR: Trying to get fullscale data from sensor %d net [%d]: no answer received or message lost (ch:%d)\n", boardId, canDeviceNum, ch);
             return false;
         }
@@ -170,7 +171,7 @@ bool CanBusAnalogSensor::sensor_start(yarp::os::Searchable& analogConfig)
         CanMessage &msg=outBuffer[0];
         msg.setId(id);
         msg.getData()[0]=0x08;
-        msg.getData()[1]=period; 
+        msg.getData()[1]=period;
         msg.setLen(2);
         canMessages=0;
         pCanBus->canWrite(outBuffer, 1, &canMessages);
@@ -183,7 +184,7 @@ bool CanBusAnalogSensor::sensor_start(yarp::os::Searchable& analogConfig)
         CanMessage &msg=outBuffer[0];
         msg.setId(id);
         msg.getData()[0]=0x07;
-        msg.getData()[1]=0x00; 
+        msg.getData()[1]=0x00;
         msg.setLen(2);
         canMessages=0;
         pCanBus->canWrite(outBuffer, 1, &canMessages);
@@ -201,10 +202,10 @@ bool CanBusAnalogSensor::sensor_start(yarp::os::Searchable& analogConfig)
             {
                 bool b=false;
                 int attempts = 0;
-                while(attempts<15) 
+                while(attempts<15)
                 {
                     b = readFullScaleAnalog(ch);
-                    if (b==true) 
+                    if (b==true)
                         {
                             if (attempts>0)    fprintf(stderr, "*** WARNING: Trying to get fullscale data from sensor: channel recovered (ch:%d)\n", ch);
                             break;
@@ -234,7 +235,7 @@ bool CanBusAnalogSensor::sensor_start(yarp::os::Searchable& analogConfig)
             CanMessage &msg=outBuffer[0];
             msg.setId(id);
             msg.getData()[0]=0x07;
-            msg.getData()[1]=0x00; 
+            msg.getData()[1]=0x00;
             msg.setLen(2);
             canMessages=0;
             pCanBus->canWrite(outBuffer, 1, &canMessages);
@@ -246,7 +247,7 @@ bool CanBusAnalogSensor::sensor_start(yarp::os::Searchable& analogConfig)
             CanMessage &msg=outBuffer[0];
             msg.setId(id);
             msg.getData()[0]=0x07;
-            msg.getData()[1]=0x03; 
+            msg.getData()[1]=0x03;
             msg.setLen(2);
             canMessages=0;
             pCanBus->canWrite(outBuffer, 1, &canMessages);
@@ -262,7 +263,7 @@ bool CanBusAnalogSensor::sensor_stop()
     CanMessage &msg=outBuffer[0];
     msg.setId(id);
     msg.getData()[0]=0x07;
-    msg.getData()[1]=0x01; 
+    msg.getData()[1]=0x01;
     msg.setLen(2);
     canMessages=0;
     pCanBus->canWrite(outBuffer, 1, &canMessages);
@@ -288,7 +289,7 @@ bool CanBusAnalogSensor::close()
     return true;
 }
 
-int CanBusAnalogSensor::read(yarp::sig::Vector &out) 
+int CanBusAnalogSensor::read(yarp::sig::Vector &out)
 {
     mutex.wait();
     out=data;
@@ -422,7 +423,7 @@ bool CanBusAnalogSensor::decode8(const unsigned char *msg, int msg_id, double *d
 }
 
 void CanBusAnalogSensor::run()
-{    
+{
     mutex.wait();
 
     unsigned int canMessages=0;
@@ -447,7 +448,7 @@ void CanBusAnalogSensor::run()
 
         //parse data here
         status=IAnalogSensor::AS_OK;
-        
+
         if (type==0x03) //analog data
         {
             if (id==boardId)
@@ -460,7 +461,7 @@ void CanBusAnalogSensor::run()
                         status=IAnalogSensor::AS_OK;
                         break;
                     case ANALOG_FORMAT_16_BIT:
-                        if (len==6) 
+                        if (len==6)
                         {
                             ret=decode16(buff, msgid, data.data());
                             status=IAnalogSensor::AS_OK;

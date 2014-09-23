@@ -17,7 +17,23 @@
 using namespace yarp::os;
 using namespace yarp::dev;
 
-class CanBusAnalogSensor : public RateThread, public yarp::dev::IAnalogSensor, public DeviceDriver 
+/**
+ * Driver for CAN communication with analog sensors.
+ *
+ * Parameters accepted in the config argument of the open method:
+ * | Parameter name | Type    | Default Value | Required | Description |
+ * |:--------------:|:-------:|:-------------:|:--------:|:-----------:|
+ * | canbusDevice   | string  |      -        | Yes      | Yarp device name of CAN Bus wrapper  |
+ * | physDevice     | string  |               | Yes      | Yarp device name for the low level CAN device driver |
+ * | canDeviceNum   | int     |      -        | Yes      | CAN Bus Address for the sensor board |
+ * | canAddress     | int     |      -        | Yes      | CAN Bus Address for the sensor board |
+ * | format         | int     |      -        | Yes      | Format (i.e. number of bits) of analog data transmitted on the CAN bus (16 for STRAIN board, 8 for MAIS board)            |
+ * | period         | int     |      -        | Yes      | Publication period (in ms) of the sensor reading on the Can Bus   |
+ * | channels       | int     |      -        | Yes      | Number of output channels of the sensor (6 for STRAIN board, 16 for MAIS board) |
+ * | useCalibration | int     |      -        | No       | If useCalibration is present and set to 1, output the calibrated readings, otherwise output the raw values  |
+ *
+ */
+class CanBusAnalogSensor : public RateThread, public yarp::dev::IAnalogSensor, public DeviceDriver
 {
     enum AnalogDataFormat
     {
@@ -42,7 +58,7 @@ protected:
     CanBuffer          inBuffer;
     CanBuffer          outBuffer;
     int                canDeviceNum;
-   
+
     yarp::os::Semaphore mutex;
 
     unsigned int       channelsNum;
@@ -57,7 +73,7 @@ protected:
 public:
     CanBusAnalogSensor(int period=20) : RateThread(period),mutex(1)
     {}
-    
+
 
     ~CanBusAnalogSensor()
     {
@@ -65,8 +81,8 @@ public:
 
     virtual bool open(yarp::os::Searchable& config);
     virtual bool close();
-   
-    
+
+
     //IAnalogSensor interface
     virtual int read(yarp::sig::Vector &out);
     virtual int getState(int ch);
