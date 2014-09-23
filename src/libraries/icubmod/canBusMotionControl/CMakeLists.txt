@@ -5,7 +5,7 @@
 
 PREPARE_DEVICE(canmotioncontrol TYPE CanBusMotionControl
     INCLUDE CanBusMotionControl.h
-    WRAPPER controlboard)
+    WRAPPER controlboardwrapper2)
 
 if (ENABLE_icubmod_canmotioncontrol)
 
@@ -15,6 +15,10 @@ if(ICUB_HAS_icub_firmware_shared)
 
    if (ICUB_CANPROTOCOL_STRICT)
        add_definitions(-DICUB_CANPROTOCOL_STRICT)
+   endif()
+
+   if (ICUB_AUTOMATIC_MODE_SWITCHING)
+	add_definitions(-DICUB_AUTOMATIC_MODE_SWITCHING)
    endif()
 
    if (ICUB_CANMASKS_STRICT_FILTER)
@@ -40,7 +44,7 @@ if(ICUB_HAS_icub_firmware_shared)
    SOURCE_GROUP("Header Files" FILES ${folder_header})
 
    yarp_add_plugin(canmotioncontrol ${folder_source} ${folder_header})
-   TARGET_LINK_LIBRARIES(canmotioncontrol ${ACE_LIBRARIES} iCubDev ${YARP_LIBRARIES})
+   TARGET_LINK_LIBRARIES(canmotioncontrol ${ACE_LIBRARIES} iCubDev ${YARP_LIBRARIES} debugStream)
 
    icub_export_library(canmotioncontrol)
 

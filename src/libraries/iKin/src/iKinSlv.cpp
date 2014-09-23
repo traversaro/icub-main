@@ -48,12 +48,10 @@ bool RpcProcessor::read(ConnectionReader &connection)
     if (!slv->isClosed())
     {
         Bottle cmd, reply;
-    
         if (!cmd.read(connection))
             return false;
     
         slv->respond(cmd,reply);
-
         if (ConnectionWriter *writer=connection.getWriter())
             reply.write(*writer);
     
@@ -682,6 +680,27 @@ void CartesianSolver::respond(const Bottle &command, Bottle &reply)
                         }
             
                         //-----------------
+                        case IKINSLV_VOCAB_OPT_CONVERGENCE:
+                        {
+                            reply.addVocab(IKINSLV_VOCAB_REP_ACK);
+                            Bottle &payLoad=reply.addList();
+
+                            Bottle &maxIter=payLoad.addList();
+                            maxIter.addString("max_iter");
+                            maxIter.addInt(slv->getMaxIter());
+
+                            Bottle &tol=payLoad.addList();
+                            tol.addString("tol");
+                            tol.addDouble(slv->getTol());
+
+                            Bottle &ttol=payLoad.addList();
+                            ttol.addString("translationalTol");
+                            ttol.addDouble(slv->getTranslationalTol());
+
+                            break;
+                        }
+
+                        //-----------------
                         default:
                             reply.addVocab(IKINSLV_VOCAB_REP_NACK);
                     }
@@ -902,11 +921,43 @@ void CartesianSolver::respond(const Bottle &command, Bottle &reply)
                                     }
                                 }
                             }
-            
+           
                             reply.addVocab(IKINSLV_VOCAB_REP_NACK);
                             break;
                         }
-            
+
+                        //-----------------
+                        case IKINSLV_VOCAB_OPT_CONVERGENCE:
+                        {
+                            if (Bottle *payLoad=command.get(2).asList())
+                            {
+                                int cnt=0;
+                                if (payLoad->check("max_iter"))
+                                {
+                                    slv->setMaxIter(payLoad->find("max_iter").asInt());
+                                    cnt++;
+                                }
+
+                                if (payLoad->check("tol"))
+                                {
+                                    slv->setTol(payLoad->find("tol").asDouble());
+                                    cnt++;
+                                }
+
+                                if (payLoad->check("translationalTol"))
+                                {
+                                    slv->setTranslationalTol(payLoad->find("translationalTol").asDouble());
+                                    cnt++;
+                                }
+
+                                reply.addVocab(cnt>0?IKINSLV_VOCAB_REP_ACK:IKINSLV_VOCAB_REP_NACK);
+                            }
+                            else
+                                reply.addVocab(IKINSLV_VOCAB_REP_NACK);
+
+                            break;
+                        }
+
                         //-----------------
                         default:
                             reply.addVocab(IKINSLV_VOCAB_REP_NACK);
@@ -1130,13 +1181,16 @@ void CartesianSolver::printInfo(const string &typ, const Vector &xd,
                                 const Vector &x, const Vector &q,
                                 const double t)
 {
+    // ensure same lenght of vectors
+    Vector _x=x.subVector(0,xd.length()-1);
+
     // compute error
-    Vector e=xd-x;
-    
+    Vector e=xd-_x;
+
     printf("\n");
     printf("   Request type       = %s\n",typ.c_str());
     printf("  Target rxPose   [m] = %s\n",const_cast<Vector&>(xd).toString().c_str());
-    printf("  Target txPose   [m] = %s\n",const_cast<Vector&>(x).toString().c_str());
+    printf("  Target txPose   [m] = %s\n",const_cast<Vector&>(_x).toString().c_str());
     printf("Target txJoints [deg] = %s\n",const_cast<Vector&>(q).toString().c_str());
     printf("  norm(rxPose-txPose) = pos [m]: %g\n",getNorm(e,"pos"));
     if (ctrlPose==IKINCTRL_POSE_FULL)

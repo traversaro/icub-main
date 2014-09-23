@@ -163,7 +163,12 @@ as (cond1) && ((cond2) || (cond3)) are not handled; however,
 this is not a real limitation since nested conditions can be 
 properly expanded: indeed, the previous example can be cast back 
 to (cond1)&&(cond2) || (cond1)&&(cond3). 
-
+ 
+<b>quit</b> \n 
+<i>Format</i>: [quit] \n 
+<i>Reply</i>: [ack] \n 
+<i>Action</i>: quit the module.
+ 
 \section lib_sec Libraries 
 - YARP libraries. 
 
@@ -277,6 +282,8 @@ using namespace yarp::os;
 #define CMD_ASK                         VOCAB3('a','s','k')
 #define CMD_SYNC                        VOCAB4('s','y','n','c')
 #define CMD_ASYNC                       VOCAB4('a','s','y','n')
+#define CMD_QUIT                        VOCAB4('q','u','i','t')
+#define CMD_BYE                         VOCAB3('b','y','e')
                                         
 #define REP_ACK                         VOCAB3('a','c','k')
 #define REP_NACK                        VOCAB4('n','a','c','k')
@@ -422,6 +429,7 @@ protected:
     bool initialized;
     bool nosave;
     bool verbose;
+    bool quitting;
 
     BufferedPort<Bottle> *pBroadcastPort;
     bool asyncBroadcast;
@@ -530,6 +538,7 @@ public:
         initialized=false;
         nosave=false;
         verbose=false;
+        quitting=false;
         idCnt=0;
     }
 
@@ -589,7 +598,7 @@ public:
 
         printMessage("loading database from %s ...\n",dbFileName.c_str());
 
-        mutex.lock();
+        LockGuard lg(mutex);
         clear();
         idCnt=0;
 
@@ -634,7 +643,6 @@ public:
         }
 
         printMessage("database loaded\n");
-        mutex.unlock();
     }
 
     /************************************************************************/
@@ -643,7 +651,7 @@ public:
         if (nosave)
             return;
 
-        mutex.lock();
+        LockGuard lg(mutex);
         string dbFileName=rf->getHomeContextPath().c_str();
         dbFileName+="/";
         dbFileName+=rf->find("db").asString().c_str();
@@ -654,20 +662,18 @@ public:
         fclose(fout);
 
         printMessage("database stored\n");
-        mutex.unlock();
     }
 
     /************************************************************************/
     void dump()
     {
-        mutex.lock();
+        LockGuard lg(mutex);
         printMessage("dumping database content ... \n");
 
         if (itemsMap.size()==0)
             printMessage("empty\n");
         else
             write(stdout);
-        mutex.unlock();
     }
 
     /************************************************************************/
@@ -677,9 +683,8 @@ public:
         {
             if (pBroadcastPort->getOutputCount()>0)
             {
-                mutex.lock();
-                Bottle &bottle=pBroadcastPort->prepare();
-                bottle.clear();
+                LockGuard lg(mutex);
+                Bottle bottle;
 
                 bottle.addString(type.c_str());
                 if (itemsMap.empty())
@@ -693,8 +698,8 @@ public:
                     item.read(*it->second.prop);
                 }
 
-                pBroadcastPort->write();
-                mutex.unlock();
+                pBroadcastPort->prepare()=bottle;
+                pBroadcastPort->writeStrict();
             }
         }
     }
@@ -711,13 +716,12 @@ public:
             return false;
         }
 
-        mutex.lock();
+        LockGuard lg(mutex);
         Property *item=new Property(content->toString().c_str());
         itemsMap[idCnt].prop=item;
         itemsMap[idCnt].lastUpdate=Time::now();
 
         printMessage("added item %s\n",item->toString().c_str());
-        mutex.unlock();
         return true;
     }
 
@@ -733,10 +737,9 @@ public:
             {
                 if (content->get(0).asVocab()==OPT_ALL)
                 {
-                    mutex.lock();
+                    LockGuard lg(mutex);
                     clear();
                     printMessage("database cleared\n");
-                    mutex.unlock();
                     return true;
                 }
             }
@@ -751,7 +754,7 @@ public:
         int id=content->find(PROP_ID).asInt();
         printMessage("removing item %d ... ",id);
 
-        mutex.lock();
+        LockGuard lg(mutex);
         map<int,Item>::iterator it=itemsMap.find(id);
         if (it!=itemsMap.end())
         {
@@ -767,12 +770,10 @@ public:
                 eraseItem(it);
 
             printMessage("successfully\n");
-            mutex.unlock();
             return true;
         }
 
         printMessage("not present!\n");
-        mutex.unlock();
         return false;
     }
 
@@ -791,7 +792,7 @@ public:
         int id=content->find(PROP_ID).asInt();
         printMessage("getting item %d ... ",id);
 
-        mutex.lock();
+        LockGuard lg(mutex);
         map<int,Item>::iterator it=itemsMap.find(id);
         if (it!=itemsMap.end())
         {
@@ -815,12 +816,10 @@ public:
                 response.read(*pProp);
 
             printMessage("%s\n",response.toString().c_str());
-            mutex.unlock();
             return true;
         }
 
         printMessage("not present!\n");
-        mutex.unlock();
         return false;
     }
 
@@ -839,7 +838,7 @@ public:
         int id=content->find(PROP_ID).asInt();
         printMessage("setting item %d ... ",id);
 
-        mutex.lock();
+        LockGuard lg(mutex);
         map<int,Item>::iterator it=itemsMap.find(id);
         if (it!=itemsMap.end())
         {
@@ -847,7 +846,6 @@ public:
             if ((owner==OPT_OWNERSHIP_ALL) || (owner==agent))
             {
                 Property *pProp=it->second.prop;
-
                 printMessage("%s\n",content->toString().c_str());
 
                 for (int i=0; i<content->size(); i++)
@@ -877,19 +875,16 @@ public:
                 }
 
                 it->second.lastUpdate=Time::now();
-                mutex.unlock();
                 return true;
             }
             else
             {
                 printMessage("locked by [%s]!\n",owner.c_str());
-                mutex.unlock();
                 return false;
             }
         }
 
         printMessage("not present!\n");
-        mutex.unlock();
         return false;
     }
 
@@ -908,7 +903,7 @@ public:
         int id=content->find(PROP_ID).asInt();
         printMessage("locking item %d ... ",id);
 
-        mutex.lock();
+        LockGuard lg(mutex);
         map<int,Item>::iterator it=itemsMap.find(id);
         if (it!=itemsMap.end())
         {
@@ -917,19 +912,16 @@ public:
             {
                 printMessage("successfully locked by [%s]!\n",agent.c_str());
                 it->second.owner=agent;
-                mutex.unlock();
                 return true;
             }
             else
             {
                 printMessage("already locked by [%s]!\n",owner.c_str());
-                mutex.unlock();
                 return false;
             }
         }
 
         printMessage("not present!\n");
-        mutex.unlock();
         return false;
     }
 
@@ -948,7 +940,7 @@ public:
         int id=content->find(PROP_ID).asInt();
         printMessage("unlocking item %d ... ",id);
 
-        mutex.lock();
+        LockGuard lg(mutex);
         map<int,Item>::iterator it=itemsMap.find(id);
         if (it!=itemsMap.end())
         {
@@ -957,19 +949,16 @@ public:
             {
                 printMessage("successfully unlocked!\n");
                 it->second.owner=OPT_OWNERSHIP_ALL;
-                mutex.unlock();
                 return true;
             }
             else
             {
                 printMessage("already locked by [%s]!\n",owner.c_str());
-                mutex.unlock();
                 return false;
             }
         }
 
         printMessage("not present!\n");
-        mutex.unlock();
         return false;
     }
 
@@ -988,7 +977,7 @@ public:
         int id=content->find(PROP_ID).asInt();
         printMessage("getting owner of the item %d ... ",id);
 
-        mutex.lock();
+        LockGuard lg(mutex);
         map<int,Item>::iterator it=itemsMap.find(id);
         if (it!=itemsMap.end())
         {
@@ -996,12 +985,10 @@ public:
             string &owner=it->second.owner;
             response.addString(owner.c_str());
             printMessage("[%s]\n",owner.c_str());
-            mutex.unlock();
             return true;
         }
 
         printMessage("item not present!\n");
-        mutex.unlock();
         return false;
     }
 
@@ -1020,7 +1007,7 @@ public:
         int id=content->find(PROP_ID).asInt();
         printMessage("getting time elapsed from last update for item %d ... ",id);
 
-        mutex.lock();
+        LockGuard lg(mutex);
         map<int,Item>::iterator it=itemsMap.find(id);
         if (it!=itemsMap.end())
         {
@@ -1036,12 +1023,10 @@ public:
                 response.addDouble(dt);
                 printMessage("%g [s]\n",dt);
             }
-            mutex.unlock();
             return true;
         }
 
         printMessage("item not present!\n");
-        mutex.unlock();
         return false;
     }
 
@@ -1051,7 +1036,7 @@ public:
         if (content==NULL)
             return false;
 
-        mutex.lock();
+        LockGuard lg(mutex);
         if (content->size()==1)
         {
             if (content->get(0).isVocab() || content->get(0).isString())
@@ -1062,8 +1047,7 @@ public:
                 
                     for (map<int,Item>::iterator it=itemsMap.begin(); it!=itemsMap.end(); it++)
                         response.addInt(it->first);
-                
-                    mutex.unlock();
+
                     return true;
                 }
             }
@@ -1077,7 +1061,6 @@ public:
         if (!(content->size()&0x01))
         {
             printMessage("uncorrect conditions received!\n");
-            mutex.unlock();
             return false;
         }
 
@@ -1115,14 +1098,12 @@ public:
                     else
                     {
                         printMessage("unknown relational operator '%s'!\n",operation.c_str());
-                        mutex.unlock();
                         return false;
                     }
                 }
                 else
                 {
                     printMessage("wrong condition given!\n");
-                    mutex.unlock();
                     return false;
                 }
 
@@ -1134,7 +1115,6 @@ public:
                     if ((operation!="||") && (operation!="&&"))
                     {
                         printMessage("unknown boolean operator '%s'!\n",operation.c_str());
-                        mutex.unlock();
                         return false;
                     }
                     else
@@ -1144,7 +1124,6 @@ public:
             else
             {
                 printMessage("wrong condition given!\n");
-                mutex.unlock();
                 return false;
             }
         }
@@ -1161,7 +1140,6 @@ public:
         }
 
         printMessage("found items matching received conditions: (%s)\n",response.toString().c_str());
-        mutex.unlock();
         return true;
     }
 
@@ -1195,6 +1173,12 @@ public:
 
         if (asyncBroadcast && erased)
             broadcast(BCTAG_ASYNC);
+    }
+
+    /************************************************************************/
+    bool isQuitting() const
+    {
+        return quitting;
     }
 
     /************************************************************************/
@@ -1482,6 +1466,15 @@ public:
             }
 
             //-----------------
+            case CMD_QUIT:
+            case CMD_BYE:
+            {
+                quitting=true;
+                reply.addVocab(REP_ACK);
+                break;
+            }
+
+            //-----------------
             default:
             {
                 printMessage("received unknown command!\n");
@@ -1624,7 +1617,7 @@ private:
     DataBase             dataBase;
     RpcProcessor         rpcProcessor;
     DataBaseModifyPort   modifyPort;
-    Port                 rpcPort;
+    RpcServer            rpcPort;
     BufferedPort<Bottle> bcPort;
 
     int cnt;
@@ -1674,7 +1667,7 @@ public:
 
     /************************************************************************/
     bool updateModule()
-    {        
+    {
         dataBase.periodicHandler(getPeriod());
 
         // back-up straightaway the database each 15 minutes
@@ -1698,7 +1691,7 @@ public:
             cumTimeOld=cumTime;
         }
 
-        return true;
+        return !dataBase.isQuitting();
     }
 
     /************************************************************************/

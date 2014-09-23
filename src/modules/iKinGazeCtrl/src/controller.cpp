@@ -227,14 +227,15 @@ void Controller::notifyEvent(const string &event, const double checkPoint)
 {
     if (port_event.getOutputCount()>0)
     {
-        Bottle bottle;
-        bottle.addString(event.c_str());
-        bottle.addDouble(q_stamp);
+        Bottle &ev=port_event.prepare();
+        ev.clear();
 
+        ev.addString(event.c_str());
+        ev.addDouble(q_stamp);
         if (checkPoint>=0.0)
-            bottle.addDouble(checkPoint);
+            ev.addDouble(checkPoint);
 
-        port_event.write(bottle);
+        port_event.writeStrict();
     }
 }
 
@@ -296,6 +297,14 @@ void Controller::stopLimb(const bool execStopPosition)
 void Controller::stopControl()
 {
     mutexRun.lock();
+    stopControlHelper();
+    mutexRun.unlock();
+}
+
+
+/************************************************************************/
+void Controller::stopControlHelper()
+{
     mutexCtrl.lock();
 
     if (commData->get_isCtrlActive())
@@ -307,7 +316,6 @@ void Controller::stopControl()
     }
 
     mutexCtrl.unlock();
-    mutexRun.unlock();
 }
 
 
@@ -450,11 +458,11 @@ void Controller::run()
     LockGuard guard(mutexRun);
 
     VectorOf<int> jointsToSet;
-    if (!areJointsHealthyAndSet(jointsToSet))
+    bool jointsHealthy=areJointsHealthyAndSet(jointsToSet);
+    if (!jointsHealthy)
     {
-        stopControl();
+        stopControlHelper();
         port_xd->get_new()=false;
-        return;
     }
 
     string event="none";
@@ -527,7 +535,7 @@ void Controller::run()
 
         port_xd->get_new()=false;
     }
-    else
+    else if (jointsHealthy)
     {
         // inhibition is cleared upon new target arrival
         if (ctrlInhibited)
@@ -637,16 +645,18 @@ void Controller::run()
 
     txInfo_x.update(x_stamp);
     if (port_x.getOutputCount()>0)
-    {        
+    {
+        port_x.prepare()=x;
         port_x.setEnvelope(txInfo_x);
-        port_x.write(x);
+        port_x.write();
     }
 
     txInfo_q.update(q_stamp);
     if (port_q.getOutputCount()>0)
-    {        
+    {
+        port_q.prepare()=q;
         port_q.setEnvelope(txInfo_q);
-        port_q.write(q);
+        port_q.write();
     }
 
     // update pose information

@@ -1,10 +1,11 @@
 // -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 
 /*
-* Copyright (C) 2006 Giorgio Metta, Lorenzo Natale
-* CopyPolicy: Released under the terms of the GNU GPL v2.0.
-*
-*/
+ * Copyright (C) 2014 iCub Facility, Istituto Italiano di Tecnologia
+ * Authors: Alberto Cardellino, Marco Randazzo, Valentina Gaggero
+ * CopyPolicy: Released under the terms of the LGPLv2.1 or later, see LGPL.TXT
+ *
+ */
 
 #include <yarp/os/Time.h>
 #include <yarp/dev/PolyDriver.h>
@@ -158,12 +159,15 @@ bool parametricCalibratorEth::open(yarp::os::Searchable& config)
         }
     }
 
-//    yWarning() << "skipCalibration is " << skipCalibration;
-
     int nj = 0;
     if(p.findGroup("GENERAL").check("joints"))
     {
         nj = p.findGroup("GENERAL").find("joints").asInt();
+    }
+    else if(p.findGroup("GENERAL").check("Joints"))
+    {
+        // This is needed to be backward compatibile with old iCubInterface
+        nj = p.findGroup("GENERAL").find("Joints").asInt();
     }
     else
     {
@@ -228,7 +232,10 @@ bool parametricCalibratorEth::open(yarp::os::Searchable& config)
     for (i = 1; i < xtmp.size(); i++) zeroPosThreshold[i-1] =  xtmp.get(i).asDouble();
  
     xtmp = p.findGroup("CALIB_ORDER");
-//    yDebug() << "Group size " << xtmp.size() << "\nvalues: " << xtmp.toString().c_str();
+    int calib_order_size = xtmp.size();
+    if (calib_order_size <= 1) {yError() << "invalid number CALIB_ORDER params"; return false;}
+    //yDebug() << "CALIB_ORDER: group size: " << xtmp.size() << " values: " << xtmp.toString().c_str();
+
     std::list<int>  tmp;
     for(int i=1; i<xtmp.size(); i++)
     {
@@ -242,7 +249,6 @@ bool parametricCalibratorEth::open(yarp::os::Searchable& config)
         }
         joints.push_back(tmp);
     }
-
     return true;
 }
 
@@ -319,12 +325,34 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
     int nj=0;
     int totJointsToCalibrate = 0;
 
+    if (dd==0)
+    {
+        yError() << deviceName << ": invalid device driver";
+        return false;
+    }
+
     yarp::dev::PolyDriver *p = dynamic_cast<yarp::dev::PolyDriver *>(dd);
-    p->view(iCalibrate);
-    p->view(iEncoders);
-    p->view(iPosition);
-    p->view(iPids);
-    p->view(iControlMode);
+    if (p!=0)
+    {
+        p->view(iCalibrate);
+        p->view(iEncoders);
+        p->view(iPosition);
+        p->view(iPids);
+        p->view(iControlMode);
+    }
+    else
+    {
+        //yError() << deviceName << ": invalid dynamic cast to yarp::dev::PolyDriver";
+        //return false;
+        
+        //This is to ensure backward-compatibility with iCubInterface
+        yWarning() << deviceName << ": using parametricCalibrator on an old iCubInterface system. Upgrade to robotInterface is recommended."; 
+        dd->view(iCalibrate);
+        dd->view(iEncoders);
+        dd->view(iPosition);
+        dd->view(iPids);
+        dd->view(iControlMode);
+    }
 
     if (!(iCalibrate && iEncoders && iPosition && iPids && iControlMode)) {
         yError() << deviceName << ": interface not found" << iCalibrate << iPosition << iPids << iControlMode;
@@ -337,26 +365,32 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
         return false;
     }
 
-// ok we have all interfaces
-
-
     std::list<int>  currentSetList;
-
-    //iterator on sets list
     std::list<std::list<int> >::iterator Bit=joints.begin(); 
     std::list<std::list<int> >::iterator Bend=joints.end();
 
-
-
     // count how many joints are there in the list of things to be calibrated
+    std::string joints_string;
     while(Bit != Bend)
     {
+        joints_string += "( ";
         currentSetList.clear();
         currentSetList = (*Bit);
+        std::list<int>::iterator lit  = currentSetList.begin();
+        std::list<int>::iterator lend = currentSetList.end();
         totJointsToCalibrate += currentSetList.size();
 
+        char joints_buff [10];
+        while(lit != lend)
+        {
+            sprintf(joints_buff, "%d ", (*lit));
+            joints_string += joints_buff;
+            lit++;
+        }
         Bit++;
+        joints_string += ") ";
     }
+    yDebug() << deviceName <<("Joints calibration order:") << joints_string;
 
     if (totJointsToCalibrate > nj)
     {
@@ -368,12 +402,10 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
     limited_pid =new Pid[nj];
 
     if(skipCalibration)
-        yWarning() << deviceName << "skipCalibration flag is on!! Set safe pid but skipping calibration!!";
-//    else
-//        yWarning() << deviceName << "\n\nGoing to calibrate!!!!\n\n";
+        yWarning() << deviceName << "skipCalibration flag is on! Setting safe pid but skipping calibration.";
 
     Bit=joints.begin();
-    while( (Bit != Bend) && (!abortCalib) )   // per ogni set di giunti
+    while( (Bit != Bend) && (!abortCalib) )   // for each set of joints
     {
         std::list<int>::iterator lit; //iterator for joint in a set 
         
@@ -419,7 +451,7 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
         
         //2) if calibration needs to go to hardware limits, enable joint
         //VALE: i can add this cycle for calib on eth because it does nothing,
-        //     because enablePid doesn't send command because joints are not calibrated
+        //      because enablePid doesn't send command because joints are not calibrated
 
         /*for(lit  = currentSetList.begin(); lit != currentSetList.end() && !abortCalib; lit++) //for each joint of set
         {
@@ -431,12 +463,12 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
                 iControlMode->setControlMode((*lit), VOCAB_CM_POSITION);
             }
         }*/
-        if(abortCalib)
-        {
-            continue; //exit
-        }
         
         Time::delay(0.1f);
+        if(abortCalib)
+        {
+            continue;
+        }
 
         //3) send calibration command
         for(lit  = currentSetList.begin(); lit != currentSetList.end() && !abortCalib; lit++) //for each joint of set
@@ -446,11 +478,19 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
             calibrateJoint((*lit));
         }
 
+        Time::delay(0.1f);
+
+        for(lit  = currentSetList.begin(); lit != currentSetList.end(); lit++)      //for each joint of set
+        {
+            iEncoders->getEncoders(currPos);
+            yDebug() <<  deviceName  << " set" << setOfJoint_idx << "j" << (*lit) << ": Calibrating... enc values AFTER calib: " << currPos[(*lit)];
+        }
+
         if(abortCalib)
         {
             continue;
         }
-        
+
         //4) check calibration result
         if(checkCalibrateJointEnded((*Bit)) ) //check calibration on entire set
         {
@@ -529,8 +569,6 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
             }
         }
         
-        
-
         // Go to the next set of joints to calibrate... if any
         Bit++;
     }
@@ -552,7 +590,7 @@ bool parametricCalibratorEth::calibrate(DeviceDriver *dd)
 
 void parametricCalibratorEth::calibrateJoint(int joint)
 {
-    yTrace() <<  deviceName  << ": Calling calibrateJoint on joint "<< joint << " with params: " << type[joint] << param1[joint] << param2[joint] << param3[joint];
+    yDebug() <<  deviceName  << ": Calling calibrateJoint on joint "<< joint << " with params: " << type[joint] << param1[joint] << param2[joint] << param3[joint];
     iCalibrate->calibrate2(joint, type[joint], param1[joint], param2[joint], param3[joint]);
 }
 
@@ -600,37 +638,13 @@ bool parametricCalibratorEth::checkCalibrateJointEnded(std::list<int> set)
 void parametricCalibratorEth::goToZero(int j)
 {
     if (abortCalib) return;
-//    yDebug() <<  deviceName  << ": Sending positionMove to joint" << j << " (desired pos: " << zeroPos[j] << "desired speed: " << zeroVel[j] <<" )";
+    yDebug() <<  deviceName  << ": Sending positionMove to joint" << j << " (desired pos: " << zeroPos[j] << "desired speed: " << zeroVel[j] <<" )";
     iPosition->setRefSpeed(j, zeroVel[j]);
     iPosition->positionMove(j, zeroPos[j]);
 }
 
-bool parametricCalibratorEth::checkGoneToZero(int j)
-{
-// wait.
-    bool ok = false;
-    double start_time = yarp::os::Time::now();
-
-    while ( (!ok) && (!abortCalib))
-    {
-        iPosition->checkMotionDone(j, &ok);
-
-        if (yarp::os::Time::now() - start_time > GO_TO_ZERO_TIMEOUT)
-        {
-            yError() << deviceName << ", joint " << j << ": Timeout while going to zero!\n";
-            ok = false;
-            break;
-        }
-    }
-    if (abortCalib)
-        yWarning() << deviceName << ", joint " << j << ": abort wait for joint %d going to zero!\n";   // quale parte del corpo?
-
-    return ok;
-}
-
 bool parametricCalibratorEth::checkGoneToZeroThreshold(int j)
 {
-
     if (skipCalibration) return false;
 
     // wait.
@@ -650,23 +664,32 @@ bool parametricCalibratorEth::checkGoneToZeroThreshold(int j)
         iControlMode->getControlMode(j, &mode);
         
         delta = fabs(angj-zeroPos[j]);
-        yDebug() << "In calib: checkGoneToZero "<< deviceName << "joint " << j << ": curr: " << angj << "des: " << zeroPos[j] << "-> delta: " << delta << "threshold: " << zeroPosThreshold[j]  << "mode: " << yarp::os::Vocab::decode(mode).c_str();;
+        yDebug() << "In calib: checkGoneToZeroThreshold "<< deviceName << "joint " << j << ": curr: " << angj << "des: " << zeroPos[j] << "-> delta: " << delta << "threshold: " << zeroPosThreshold[j]  << "mode: " << yarp::os::Vocab::decode(mode).c_str();
 
-         if (delta < zeroPosThreshold[j] && done)
+        if (delta < zeroPosThreshold[j] && done)
         {
-//            yDebug() << deviceName.c_str() << "joint " << j<< " completed with delta"  << delta << "over " << zeroPosThreshold[j];
+            yDebug() << deviceName.c_str() << "joint " << j<< " completed with delta"  << delta << "over " << zeroPosThreshold[j];
             finished=true;
             break;
         }
-
         if (yarp::os::Time::now() - start_time > GO_TO_ZERO_TIMEOUT)
         {
-            yError() << "In calib: checkGoneToZero " <<  deviceName.c_str() << "joint " << j << " Timeout while going to zero!";
-            return false;
+            yError() << "In calib: checkGoneToZeroThreshold " <<  deviceName.c_str() << "joint " << j << " Timeout while going to zero!";
+            break;
+        }
+        if (mode == VOCAB_CM_IDLE)
+        {
+            yError() << "In calib: checkGoneToZeroThreshold " <<  deviceName.c_str() << "joint " << j << " is idle, skipping!";
+            break;
+        }
+        if (mode == VOCAB_CM_HW_FAULT)
+        {
+            yError() << "In calib: checkGoneToZeroThreshold " <<  deviceName.c_str() << "hardware fault on joint " << j << ", skipping!";
+            break;
         }
         if (abortCalib)
         {
-            yWarning() << "In calib: checkGoneToZero " <<  deviceName.c_str() << " joint " << j << " Aborting go to zero!\n";
+            yWarning() << "In calib: checkGoneToZeroThreshold " <<  deviceName.c_str() << " joint " << j << " Aborting wait while going to zero!\n";
             break;
         }
         Time::delay(0.5);
@@ -728,7 +751,7 @@ bool parametricCalibratorEth::park(DeviceDriver *dd, bool wait)
 
     if (wait)
     {
-//        yDebug() << deviceName.c_str() << ": Moving to park positions";
+        yDebug() << deviceName.c_str() << ": Moving to park positions";
         bool done=false;
         while((!done) && (timeout<PARK_TIMEOUT) && (!abortParking))
         {
@@ -752,7 +775,7 @@ bool parametricCalibratorEth::park(DeviceDriver *dd, bool wait)
         }
     }
 
-//    yDebug() << "Park was " << (abortParking ? "aborted" : "done");
+    yDebug() << "Park was " << (abortParking ? "aborted" : "done");
     yError() << "PARKING-timeout "<< deviceName.c_str() << " : "<< timeout;
     for(int j=0; j < nj; j++)
     {
@@ -765,14 +788,14 @@ bool parametricCalibratorEth::park(DeviceDriver *dd, bool wait)
 
 bool parametricCalibratorEth::quitCalibrate()
 {
-//    yTrace() << deviceName.c_str() << ": Quitting calibrate\n";
+    yDebug() << deviceName.c_str() << ": Quitting calibrate\n";
     abortCalib = true;
     return true;
 }
 
 bool parametricCalibratorEth::quitPark()
 {
-//    yTrace() << deviceName.c_str() << ": Quitting parking\n";
+    yDebug() << deviceName.c_str() << ": Quitting parking\n";
     abortParking=true;
     return true;
 }

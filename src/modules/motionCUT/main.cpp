@@ -284,9 +284,9 @@ protected:
     BufferedPort<ImageOf<PixelBgr> >  inPort;
     BufferedPort<ImageOf<PixelBgr> >  outPort;
     BufferedPort<ImageOf<PixelMono> > optPort;
-    Port nodesPort;
-    Port blobsPort;
-    Port cropPort;
+    BufferedPort<ImageOf<PixelBgr> >  cropPort;
+    BufferedPort<Bottle>              nodesPort;
+    BufferedPort<Bottle>              blobsPort;
 
     /************************************************************************/
     void disposeMem()
@@ -495,11 +495,10 @@ public:
             cvCvtColor(pImgBgrIn->getIplImage(),imgMonoIn.getIplImage(),CV_BGR2GRAY);
 
             // copy input image into output image
-            ImageOf<PixelBgr> &imgBgrOut=outPort.prepare();
-            imgBgrOut=*pImgBgrIn;
+            ImageOf<PixelBgr> imgBgrOut=*pImgBgrIn;
 
             // get optFlow image
-            ImageOf<PixelMono> &imgMonoOpt=optPort.prepare();
+            ImageOf<PixelMono> imgMonoOpt;
             imgMonoOpt.resize(imgBgrOut);
             imgMonoOpt.zero();
 
@@ -616,31 +615,31 @@ public:
             // send out images, propagating the time-stamp
             if (outPort.getOutputCount()>0)
             {
+                outPort.prepare()=imgBgrOut;
                 outPort.setEnvelope(stamp);
                 outPort.write();
             }
-            else
-                outPort.unprepare();
 
             if (optPort.getOutputCount()>0)
             {
+                optPort.prepare()=imgMonoOpt;
                 optPort.setEnvelope(stamp);
                 optPort.write();
             }
-            else
-                optPort.unprepare();
 
             // send out data bottles, propagating the time-stamp
             if ((nodesPort.getOutputCount()>0) && (nodesBottle.size()>1))
             {
+                nodesPort.prepare()=nodesBottle;
                 nodesPort.setEnvelope(stamp);
-                nodesPort.write(nodesBottle);
+                nodesPort.write();
             }
 
             if ((blobsPort.getOutputCount()>0) && (blobsBottle.size()>0))
             {
+                blobsPort.prepare()=blobsBottle;
                 blobsPort.setEnvelope(stamp);
-                blobsPort.write(blobsBottle);
+                blobsPort.write();
             }
             
             if ((cropPort.getOutputCount()>0) && (blobsBottle.size()>0))
@@ -655,7 +654,7 @@ public:
                 CvPoint br=cvPoint(std::min(x+d2,pImgBgrIn->width()-1),std::min(y+d2,pImgBgrIn->height()-1));
                 CvPoint cropSize=cvPoint(br.x-tl.x,br.y-tl.y);
 
-                ImageOf<PixelBgr> cropImg;
+                ImageOf<PixelBgr> &cropImg=cropPort.prepare();
                 cropImg.resize(cropSize.x,cropSize.y);
                 
                 cvSetImageROI((IplImage*)pImgBgrIn->getIplImage(),cvRect(tl.x,tl.y,cropSize.x,cropSize.y));
@@ -663,7 +662,7 @@ public:
                 cvResetImageROI((IplImage*)pImgBgrIn->getIplImage());
                             
                 cropPort.setEnvelope(stamp);
-                cropPort.write(cropImg);
+                cropPort.write();
             }
 
             // save data for next cycle

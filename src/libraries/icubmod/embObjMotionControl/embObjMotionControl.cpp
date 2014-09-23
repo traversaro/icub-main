@@ -39,31 +39,28 @@ using namespace yarp::os::impl;
 
 #define MAXNUMOFJOINTS 16
 
-//temporary fix to emulate behaviour pre-controlMode2
-#define AUTOMATIC_MODE_SWITCHING
-
 // Utilities
 
-static void copyPid_iCub2eo(const Pid *in, eOmc_PID_t *out)
+void embObjMotionControl::copyPid_iCub2eo(const Pid *in, eOmc_PID_t *out)
 {
-    out->kp = (int16_t)in->kp;
-    out->ki = (int16_t)in->ki;
-    out->kd = (int16_t)in->kd;
-    out->limitonintegral = (int16_t)in->max_int;
-    out->limitonoutput = (int16_t)in->max_output;
-    out->offset = (int16_t)in->offset;
-    out->scale = (int8_t)in->scale;
+    out->kp = (int16_t) S_16(in->kp);
+    out->ki = (int16_t) S_16(in->ki);
+    out->kd = (int16_t) S_16(in->kd);
+    out->limitonintegral = (int16_t) S_16(in->max_int);
+    out->limitonoutput = (int16_t) S_16(in->max_output);
+    out->offset = (int16_t) S_16(in->offset);
+    out->scale = (int8_t) (in->scale);
 }
 
-static void copyPid_eo2iCub(eOmc_PID_t *in, Pid *out)
+void embObjMotionControl::copyPid_eo2iCub(eOmc_PID_t *in, Pid *out)
 {
-    out->kp = in->kp;
-    out->ki = in->ki;
-    out->kd = in->kd;
-    out->max_int = in->limitonintegral;
-    out->max_output = in->limitonoutput;
-    out->offset = in->offset;
-    out->scale = in->scale;
+    out->kp = (double) in->kp;
+    out->ki = (double) in->ki;
+    out->kd = (double) in->kd;
+    out->max_int = (double) in->limitonintegral;
+    out->max_output = (double) in->limitonoutput;
+    out->offset = (double) in->offset;
+    out->scale = (double) in->scale;
 }
 
 // This will be moved in the ImplXXXInterface
@@ -353,49 +350,40 @@ bool embObjMotionControl::alloc(int nj)
 
 bool embObjMotionControl::dealloc()
 {
-    delete _axisMap;
-    delete _angleToEncoder;
-    delete _encodersStamp;
-    delete _encoderconversionoffset;
-    delete _encoderconversionfactor;
-
-    delete _rotToEncoder;
-    delete _zeros;
-    delete _torqueSensorId;
-    delete _torqueSensorChan;
-    delete _maxTorque;
-    delete _newtonsToSensor;
-
-//    if(NULL != _pids);
-//        delete _pids;
-//    delete _tpids;
-
-    delete _impedance_params;
-    delete _impedance_limits;
-    delete _estim_params;
-
-    delete _limitsMax;
-    delete _limitsMin;
-    delete _currentLimits;
-    delete checking_motiondone;
-
-    delete _velocityShifts;
-    delete _velocityTimeout;
-
-    // Reserve space for data stored locally. values are initialize to 0
-    delete _ref_positions;
-    delete _command_speeds;
-    delete _ref_speeds;
-    delete _ref_accs;
-    delete _ref_torques;
-    delete _enabledAmp;
-    delete _enabledPid;
-    delete _calibrated;
+    checkAndDestroy(_axisMap);
+    checkAndDestroy(_angleToEncoder);
+    checkAndDestroy(_encodersStamp);
+    checkAndDestroy(_encoderconversionoffset);
+    checkAndDestroy(_encoderconversionfactor);
+    checkAndDestroy(_rotToEncoder);
+    checkAndDestroy(_zeros);
+    checkAndDestroy(_torqueSensorId);
+    checkAndDestroy(_torqueSensorChan);
+    checkAndDestroy(_maxTorque);
+    checkAndDestroy(_newtonsToSensor);
+    checkAndDestroy(_pids);
+    checkAndDestroy(_tpids);
+    checkAndDestroy(_impedance_params);
+    checkAndDestroy(_impedance_limits);
+    checkAndDestroy(_estim_params);
+    checkAndDestroy(_limitsMax);
+    checkAndDestroy(_limitsMin);
+    checkAndDestroy(_currentLimits);
+    checkAndDestroy(checking_motiondone);
+    checkAndDestroy(_velocityShifts);
+    checkAndDestroy(_velocityTimeout);
+    checkAndDestroy(_ref_positions);
+    checkAndDestroy(_command_speeds);
+    checkAndDestroy(_ref_speeds);
+    checkAndDestroy(_ref_accs);
+    checkAndDestroy(_ref_torques);
+    checkAndDestroy(_enabledAmp);
+    checkAndDestroy(_enabledPid);
+    checkAndDestroy(_calibrated);
 
 #ifdef _SETPOINT_TEST_
     delete j_debug_data;
 #endif
-    //  _debug_params=allocAndCheck<DebugParameters>(nj);
 
 
     return true;
@@ -431,7 +419,7 @@ embObjMotionControl::embObjMotionControl() :
     _njoints      = 0;
     _axisMap      = NULL;
     _zeros        = NULL;
-
+    _encodersStamp = NULL;
     _encoderconversionfactor = NULL;
     _encoderconversionoffset = NULL;
     _angleToEncoder = NULL;
@@ -486,7 +474,7 @@ bool embObjMotionControl::open(yarp::os::Searchable &config)
     std::string str;
     if(!config.findGroup("GENERAL").find("verbose").isBool())
     {
-        yWarning() << " general->verbose bool param is different from accepted values (true / false). Assuming false";
+        yError() << " general->verbose bool param is different from accepted values (true / false). Assuming false";
         str=" ";
     }
     else
@@ -496,7 +484,7 @@ bool embObjMotionControl::open(yarp::os::Searchable &config)
         else
             str=" ";
     }
-    yTrace() << str;
+    yTrace() <<str;
 
     // Tmp variables
     Bottle          groupEth;
@@ -649,7 +637,7 @@ bool embObjMotionControl::open(yarp::os::Searchable &config)
     }
 
     _fId.handle  = (this);
-    res = ethManager->requestResource(groupProtocol, &_fId);
+    res = ethManager->requestResource(config, &_fId);
     if(NULL == res)
     {
         yError() << "EMS device not instantiated... unable to continue";
@@ -671,7 +659,7 @@ bool embObjMotionControl::open(yarp::os::Searchable &config)
         return false;
     }
 
-    if(!configure_mais())
+    if(!configure_mais(groupProtocol))
     {
         yError() << "while configuring mais for board " << _fId.boardNum;
         return false;
@@ -1394,17 +1382,17 @@ bool embObjMotionControl::init()
             copyPid_iCub2eo(&_pids[logico],  &jconfig.pidvelocity);
             copyPid_iCub2eo(&_tpids[logico], &jconfig.pidtorque);
 
-            jconfig.impedance.damping	= (eOmeas_damping_t) _impedance_params[logico].damping * 1000;
-            jconfig.impedance.stiffness	= (eOmeas_stiffness_t) _impedance_params[logico].stiffness * 1000;
-            jconfig.impedance.offset	= 0; //impedance_params[j];
+            jconfig.impedance.damping   = (eOmeas_damping_t)   U_32(_impedance_params[logico].damping * 1000);
+            jconfig.impedance.stiffness = (eOmeas_stiffness_t) U_32(_impedance_params[logico].stiffness * 1000);
+            jconfig.impedance.offset    = 0; //impedance_params[j];
 
-            _cacheImpedance[logico].stiffness = jconfig.impedance.damping;
-        	_cacheImpedance[logico].damping   = jconfig.impedance.stiffness;
-        	_cacheImpedance[logico].offset = 0;
+            _cacheImpedance[logico].stiffness = jconfig.impedance.stiffness;
+            _cacheImpedance[logico].damping   = jconfig.impedance.damping;
+            _cacheImpedance[logico].offset    = 0;
 
-            jconfig.limitsofjoint.max = (eOmeas_position_t) convertA2I(_limitsMax[logico], _zeros[logico], _angleToEncoder[logico]);
-            jconfig.limitsofjoint.min = (eOmeas_position_t) convertA2I(_limitsMin[logico], _zeros[logico], _angleToEncoder[logico]);
-            jconfig.velocitysetpointtimeout = (eOmeas_time_t)_velocityTimeout[logico];
+            jconfig.limitsofjoint.max = (eOmeas_position_t) S_32(convertA2I(_limitsMax[logico], _zeros[logico], _angleToEncoder[logico]));
+            jconfig.limitsofjoint.min = (eOmeas_position_t) S_32(convertA2I(_limitsMin[logico], _zeros[logico], _angleToEncoder[logico]));
+            jconfig.velocitysetpointtimeout = (eOmeas_time_t) U_16(_velocityTimeout[logico]);
             jconfig.motionmonitormode = eomc_motionmonitormode_dontmonitor;
 
             jconfig.encoderconversionfactor = eo_common_float_to_Q17_14(_encoderconversionfactor[logico]);
@@ -1449,7 +1437,7 @@ bool embObjMotionControl::init()
                 continue;
             }
 
-            eOmeas_current_t	current = (eOmeas_current_t) _currentLimits[logico];
+            eOmeas_current_t	current = (eOmeas_current_t) S_16(_currentLimits[logico]);
 
             if(!res->addSetMessage(protid, (uint8_t *) &current))
             {
@@ -1464,20 +1452,54 @@ bool embObjMotionControl::init()
 }
 
 
-bool embObjMotionControl::configure_mais(void)
+bool embObjMotionControl::configure_mais(yarp::os::Searchable &config)
 {
     // Mais per lettura posizioni dita, c'e' solo sulle mani per ora
 
-
-    uint8_t               maisnum   = 0;
-    uint8_t               datarate  = 10;    //10 milli (like in icub_right_arm_safe.ini)  // type ok
+    uint8_t               datarate  = 10;    // 10 milli (like in icub_right_arm_safe.ini)  // type ok
     
     //#warning --> marcoaccame on 08may14: the control about mais being only in boards 2 and 4 is ... to be avoided. much better using the PROTOCOL section and see if mais is present.
 
+#if 1
     if((_fId.boardNum != 2) && (_fId.boardNum != 4))
     {
         return true; // only board 2 and 4 have mais connected
     }
+#else
+
+    bool thereisamais = false;
+
+    if(config.isNull())
+    {
+        yWarning() << "embObjMotionControl-> board " << _fId.boardNum << " cannot find group PROTOCOL, thus the mais shall not be initialised. Possible misbehaviours";
+    }
+    else if(false == config.check("endpointAnalogSensorsIsSupported"))
+    {
+        yWarning() << "embObjMotionControl-> board " << _fId.boardNum << " cannot find param PROTOCOL.endpointAnalogSensorsIsSupported, thus the mais shall not be initialised. Possible misbehaviours";
+    }
+    else if(false == config.check("entityASmaisNumberOf"))
+    {
+        yWarning() << "embObjMotionControl-> board " << _fId.boardNum << " cannot find param PROTOCOL.entityASmaisNumberOf, thus the mais shall not be initialised. Possible misbehaviours";
+    }
+    else
+    {
+        int number  = config.find("endpointAnalogSensorsIsSupported").asInt();
+        if(0 != number)
+        {
+            int nmais = config.find("entityASmaisNumberOf").asInt();
+            thereisamais = (0 == nmais) ? (false) : true;
+        }
+    }
+
+    // ok, if there is not any mais i return
+    if(false == thereisamais)
+    {
+        return true;
+    }
+
+#endif
+
+
     //set mais datarate = 1millisec
     eOprotID32_t protid = eoprot_ID_get(eoprot_endpoint_analogsensors, eoprot_entity_as_mais, 0, eoprot_tag_as_mais_config_datarate);
 
@@ -1602,7 +1624,7 @@ bool embObjMotionControl::setPidsRaw(const Pid *pids)
 
 bool embObjMotionControl::setReferenceRaw(int j, double ref)
 {
-    #ifdef AUTOMATIC_MODE_SWITCHING
+    #ifdef ICUB_AUTOMATIC_MODE_SWITCHING
     // fix to emulate behaviour pre-controlMode2
     int mode;
     getControlModeRaw(j, &mode);
@@ -1618,7 +1640,7 @@ bool embObjMotionControl::setReferenceRaw(int j, double ref)
     eOmc_setpoint_t setpoint;
 
     setpoint.type = (eOenum08_t) eomc_setpoint_positionraw;
-    setpoint.to.position.value = (eOmeas_position_t) ref;
+    setpoint.to.position.value = (eOmeas_position_t) S_32(ref);
     setpoint.to.position.withvelocity = 0;
 #ifdef VERIFY_ROP_SETPOSITIONRAW
     refRawSignature[j]++;
@@ -1849,7 +1871,7 @@ bool embObjMotionControl::setVelocityModeRaw()
 
 bool embObjMotionControl::velocityMoveRaw(int j, double sp)
 {
-    #ifdef AUTOMATIC_MODE_SWITCHING
+    #ifdef ICUB_AUTOMATIC_MODE_SWITCHING
     // fix to emulate behaviour pre-controlMode2
     int mode;
     getControlModeRaw(j, &mode);
@@ -1866,8 +1888,8 @@ bool embObjMotionControl::velocityMoveRaw(int j, double sp)
 
     eOmc_setpoint_t setpoint;
     setpoint.type = eomc_setpoint_velocity;
-    setpoint.to.velocity.value =  (eOmeas_velocity_t) _command_speeds[j];
-    setpoint.to.velocity.withacceleration = (eOmeas_acceleration_t) _ref_accs[j];
+    setpoint.to.velocity.value =  (eOmeas_velocity_t) S_32(_command_speeds[j]);
+    setpoint.to.velocity.withacceleration = (eOmeas_acceleration_t) S_32(_ref_accs[j]);
 
 
     if(! res->addSetMessage(protid, (uint8_t *) &setpoint))
@@ -1927,34 +1949,34 @@ bool embObjMotionControl::calibrate2Raw(int j, unsigned int type, double p1, dou
     {
         // muove -> amp+pid, poi calib
     case eomc_calibration_type0_hard_stops:
-        calib.params.type0.pwmlimit = (int16_t) p1;
-        calib.params.type0.velocity = (eOmeas_velocity_t) p2;
+        calib.params.type0.pwmlimit = (int16_t) S_16(p1);
+        calib.params.type0.velocity = (eOmeas_velocity_t) S_32(p2);
         break;
 
         // fermo
     case eomc_calibration_type1_abs_sens_analog:
-        calib.params.type1.position = (int16_t) p1;
-        calib.params.type1.velocity = (eOmeas_velocity_t) p2;
+        calib.params.type1.position = (int16_t) S_16(p1);
+        calib.params.type1.velocity = (eOmeas_velocity_t)  S_32(p2);
         break;
 
         // muove
     case eomc_calibration_type2_hard_stops_diff:
-        calib.params.type2.pwmlimit = (int16_t) p1;
-        calib.params.type2.velocity = (eOmeas_velocity_t) p2;
+        calib.params.type2.pwmlimit = (int16_t) S_16(p1);
+        calib.params.type2.velocity = (eOmeas_velocity_t)  S_32(p2);
         break;
 
         // muove
     case eomc_calibration_type3_abs_sens_digital:
-        calib.params.type3.position = (int16_t) p1;
-        calib.params.type3.velocity = (eOmeas_velocity_t) p2;
-        calib.params.type3.offset   = (int32_t) p3;
+        calib.params.type3.position = (int16_t) S_16(p1);
+        calib.params.type3.velocity = (eOmeas_velocity_t)  S_32(p2);
+        calib.params.type3.offset   = (int32_t) S_32(p3);
         break;
 
         // muove
     case eomc_calibration_type4_abs_and_incremental:
-        calib.params.type4.position   = (int16_t) p1;
-        calib.params.type4.velocity   = (eOmeas_velocity_t) p2;
-        calib.params.type4.maxencoder = (int32_t) p3;
+        calib.params.type4.position   = (int16_t) S_16(p1);
+        calib.params.type4.velocity   = (eOmeas_velocity_t)  S_32(p2);
+        calib.params.type4.maxencoder = (int32_t) S_32(p3);
         break;
 
     default:
@@ -2067,7 +2089,7 @@ bool embObjMotionControl::positionMoveRaw(int j, double ref)
     */
 #endif
 
-    #ifdef AUTOMATIC_MODE_SWITCHING
+    #ifdef ICUB_AUTOMATIC_MODE_SWITCHING
     // fix to emulate behaviour pre-controlMode2
     int mode;
     getControlModeRaw(j, &mode);
@@ -2084,8 +2106,8 @@ bool embObjMotionControl::positionMoveRaw(int j, double ref)
     eOmc_setpoint_t setpoint;
 
     setpoint.type = (eOenum08_t) eomc_setpoint_position;
-    setpoint.to.position.value =  (eOmeas_position_t) _ref_positions[j];
-    setpoint.to.position.withvelocity = (eOmeas_velocity_t) _ref_speeds[j];
+    setpoint.to.position.value =  (eOmeas_position_t) S_32(_ref_positions[j]);
+    setpoint.to.position.withvelocity = (eOmeas_velocity_t) S_32(_ref_speeds[j]);
 #ifdef _SETPOINT_TEST_
     if( (_fId.boardNum == 6) || (_fId.boardNum==8 ) )
     {
@@ -2569,7 +2591,7 @@ bool embObjMotionControl::setControlModeRaw(const int j, const int _mode)
     eOenum08_t      valSet;
     eOenum08_t      valGot;
 
-    yDebug() << "SetControlMode: received setControlMode command (SINGLE) for board " << _fId.boardNum << " joint " << j << " mode " << Vocab::decode(_mode);
+    //yDebug() << "SetControlMode: received setControlMode command (SINGLE) for board " << _fId.boardNum << " joint " << j << " mode " << Vocab::decode(_mode);
 
     if(!controlModeCommandConvert_yarp2embObj(_mode, valSet) )
     {
@@ -2597,6 +2619,7 @@ bool embObjMotionControl::setControlModeRaw(const int j, const int _mode)
 //        return false;
 //    }
 
+    yarp::os::Time::delay(0.010);
     return true;
 }
 
@@ -2605,7 +2628,7 @@ bool embObjMotionControl::setControlModesRaw(const int n_joint, const int *joint
     eOenum08_t          *valSet = new eOenum08_t[n_joint];
     eOenum08_t          *valGot = new eOenum08_t[n_joint];
 
-    yError() << "SetControlMode: received setControlMode (GROUP) command for board " << _fId.boardNum << " mode " << Vocab::decode(modes[0]);
+    //yDebug() << "SetControlMode: received setControlMode (GROUP) command for board " << _fId.boardNum << " mode " << Vocab::decode(modes[0]);
 
     for(int idx=0; idx<n_joint; idx++)
     {
@@ -2638,6 +2661,8 @@ bool embObjMotionControl::setControlModesRaw(const int n_joint, const int *joint
 //            return false;
 //        }
 //    }
+
+    yarp::os::Time::delay(0.010);
     return true;
 }
 
@@ -2680,6 +2705,8 @@ bool embObjMotionControl::setControlModesRaw(int *modes)
 //            return false;
 //        }
 //    }
+
+    yarp::os::Time::delay(0.010);
     return true;
 }
 
@@ -2850,7 +2877,7 @@ bool embObjMotionControl::getCurrentsRaw(double *vals)
 bool embObjMotionControl::setMaxCurrentRaw(int j, double val)
 {
     eOprotID32_t protid = eoprot_ID_get(eoprot_endpoint_motioncontrol, eoprot_entity_mc_motor, j, eoprot_tag_mc_motor_config_maxcurrentofmotor);
-    eOmeas_current_t  maxCurrent = (eOmeas_current_t) val;
+    eOmeas_current_t  maxCurrent = (eOmeas_current_t) S_16(val);
     return res->addSetMessage(protid, (uint8_t*) &val);
 }
 
@@ -2933,14 +2960,12 @@ bool embObjMotionControl::setLimitsRaw(int j, double min, double max)
 {
     bool ret = true;
     eOprotID32_t protid = eoprot_ID_get(eoprot_endpoint_motioncontrol, eoprot_entity_mc_joint, j, eoprot_tag_mc_joint_config_limitsofjoint);
-
-
     eOmeas_position_limits_t    limits;
-    limits.max = (eOmeas_position_t) convertA2I(max, _zeros[j], _angleToEncoder[j]);
-    limits.min = (eOmeas_position_t) convertA2I(min, _zeros[j], _angleToEncoder[j]);
+
+    limits.max = (eOmeas_position_t) S_32(max);
+    limits.min = (eOmeas_position_t) S_32(min);
 
     ret = res->addSetMessage(protid, (uint8_t *) &limits);
-
 
     if(!ret)
     {
@@ -3042,7 +3067,7 @@ bool embObjMotionControl::updateMeasure(int userLevel_jointNumber, double &fTorq
 			fTorque = _maxTorque[j];
 		}
 
-		meas_torque = (eOmeas_torque_t)(NEWTON2SCALE*fTorque);
+        meas_torque = (eOmeas_torque_t) S_16(NEWTON2SCALE*fTorque);
 	}
 
     eOprotID32_t protoid = eoprot_ID_get((eOprotEndpoint_t)_fId.ep, eoprot_entity_mc_joint, j, eoprot_tag_mc_joint_inputs_externallymeasuredtorque);
@@ -3106,11 +3131,13 @@ bool embObjMotionControl::setRefTorqueRaw(int j, double t)
 {
     eOmc_setpoint_t setpoint;
     setpoint.type = (eOenum08_t) eomc_setpoint_torque;
-    setpoint.to.torque.value =  (eOmeas_torque_t)t ;
+    setpoint.to.torque.value =  (eOmeas_torque_t) S_16(t);
 
     eOprotID32_t protid = eoprot_ID_get(eoprot_endpoint_motioncontrol, eoprot_entity_mc_joint, j, eoprot_tag_mc_joint_cmmnds_setpoint);
     return res->addSetMessage(protid, (uint8_t*) &setpoint);
 }
+
+
 
 bool embObjMotionControl::getRefTorquesRaw(double *t)
 {
@@ -3285,6 +3312,11 @@ bool embObjMotionControl::getWholeImpedanceRaw(int j, eOmc_impedance_t &imped)
     // Get the value
     uint16_t size;
     res->readBufferedValue(protoid, (uint8_t *)&imped, &size);
+
+    // refresh cached value when reading data from the EMS
+    _cacheImpedance->damping   = (double) imped.damping;
+    _cacheImpedance->stiffness = (double) imped.stiffness;
+    _cacheImpedance->offset    = (double) imped.offset;
     return true;
 }
 
@@ -3300,8 +3332,8 @@ bool embObjMotionControl::setImpedanceRaw(int j, double stiffness, double dampin
 //        return false;
 
     // EMS will divide stiffness value by 1000 because the cycle is 1KHz. It is done on the EMS since it manage the cycle and knows the real Rate.
-    _cacheImpedance[j].stiffness = (eOmeas_stiffness_t) (stiffness * 1000.0);
-	_cacheImpedance[j].damping   = (eOmeas_damping_t) (damping * 1000.0);
+    _cacheImpedance[j].stiffness = (eOmeas_stiffness_t) U_32(stiffness * 1000.0);
+    _cacheImpedance[j].damping   = (eOmeas_damping_t) U_32(damping * 1000.0);
 
 	val.stiffness 	= _cacheImpedance[j].stiffness;
 	val.damping 	= _cacheImpedance[j].damping;
@@ -3328,7 +3360,7 @@ bool embObjMotionControl::setImpedanceOffsetRaw(int j, double offset)
 //    if(!getWholeImpedanceRaw(j, val))
 //        return false;
 
-	_cacheImpedance[j].offset   = (eOmeas_torque_t) offset;
+    _cacheImpedance[j].offset   = (eOmeas_torque_t) S_16(offset);
 	val.stiffness 	= _cacheImpedance[j].stiffness;
 	val.damping 	= _cacheImpedance[j].damping;
     val.offset  	= _cacheImpedance[j].offset;
@@ -3749,7 +3781,7 @@ bool embObjMotionControl::setRefOutputRaw(int j, double v)
     eOmc_setpoint_t setpoint;
 
     setpoint.type = (eOenum08_t) eomc_setpoint_current;
-    setpoint.to.current.value =  (eOmeas_current_t) v;
+    setpoint.to.current.value =  (eOmeas_current_t) S_16(v);
 
     return res->addSetMessage(protid, (uint8_t*) &setpoint);
 }

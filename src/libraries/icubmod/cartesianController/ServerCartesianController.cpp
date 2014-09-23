@@ -77,6 +77,7 @@ bool CartesianCtrlRpcProcessor::read(ConnectionReader &connection)
 CartesianCtrlCommandPort::CartesianCtrlCommandPort(ServerCartesianController *server)
 {
     this->server=server;
+    useCallback();
 }
 
 
@@ -196,8 +197,6 @@ void ServerCartesianController::openPorts()
 {
     portCmd     =new CartesianCtrlCommandPort(this);
     rpcProcessor=new CartesianCtrlRpcProcessor(this);
-
-    portCmd->useCallback();
     portRpc.setReader(*rpcProcessor);
 
     ConstString prefixName="/";
@@ -210,6 +209,9 @@ void ServerCartesianController::openPorts()
     portState.open((prefixName+"/state:o").c_str());
     portEvent.open((prefixName+"/events:o").c_str());
     portRpc.open((prefixName+"/rpc:i").c_str());
+
+    if (debugInfoEnabled)
+        portDebugInfo.open((prefixName+"/dbg:o").c_str());
 }
 
 
@@ -235,6 +237,12 @@ void ServerCartesianController::closePorts()
         portCmd->interrupt();
         portCmd->close();
         delete portCmd;
+    }
+
+    if (debugInfoEnabled)
+    {
+        portDebugInfo.interrupt();
+        portDebugInfo.close();
     }
 
     delete rpcProcessor;
@@ -1314,22 +1322,35 @@ void ServerCartesianController::setJointsCtrlMode(const VectorOf<int> &jointsToS
 
 
 /************************************************************************/
-void ServerCartesianController::sendCtrlCmdMultipleJointsPosition()
+Bottle ServerCartesianController::sendCtrlCmdMultipleJointsPosition()
 {
+    Bottle info;
     VectorOf<int> joints;
     Vector refs;
     int cnt=0;
     int j=0;
-    int k=0;    
+    int k=0;
 
-    Vector q=ctrl->get_q();
+    info.addString("position");
+    info.addString("multiple");
+
+    Vector q=CTRL_RAD2DEG*ctrl->get_q();
     velCmd=CTRL_RAD2DEG*ctrl->get_qdot();
     for (unsigned int i=0; i<chainState->getN(); i++)
     {
         if (!(*chainState)[i].isBlocked())
         {
-            joints.push_back(lRmp[j][k]);
-            refs.push_back(CTRL_RAD2DEG*q[cnt]);
+            int joint=lRmp[j][k];
+            double ref=q[cnt];
+
+            joints.push_back(joint);
+            refs.push_back(ref);
+
+            ostringstream ss;
+            ss<<lDsc[j].key.c_str()<<"_"<<joint;
+            info.addString(ss.str().c_str());
+            info.addDouble(ref);
+
             cnt++;
         }
 
@@ -1344,33 +1365,46 @@ void ServerCartesianController::sendCtrlCmdMultipleJointsPosition()
             k=0;
         }
     }
+
+    return info;
 }
 
 
 /************************************************************************/
-void ServerCartesianController::sendCtrlCmdMultipleJointsVelocity()
+Bottle ServerCartesianController::sendCtrlCmdMultipleJointsVelocity()
 {
+    Bottle info;
     VectorOf<int> joints;
     Vector vels;
     int cnt=0;
     int j=0;
-    int k=0;    
+    int k=0;
 
-    Vector v=ctrl->get_qdot();
+    info.addString("velocity");
+    info.addString("multiple");
+
+    Vector v=CTRL_RAD2DEG*ctrl->get_qdot();
     for (unsigned int i=0; i<chainState->getN(); i++)
     {
         if (!(*chainState)[i].isBlocked())
         {
-            double v_cnt=CTRL_RAD2DEG*v[cnt];
+            int joint=lRmp[j][k];
+            double vel=v[cnt];
             double thres=lDsc[j].minAbsVels[k];
 
             // apply bang-bang control to compensate for unachievable low velocities
-            if ((v_cnt!=0.0) && (v_cnt>-thres) && (v_cnt<thres))
-                v_cnt=iCub::ctrl::sign(qdes[cnt]-fb[cnt])*thres;
+            if ((vel!=0.0) && (fabs(vel)<thres))
+                vel=iCub::ctrl::sign(qdes[cnt]-fb[cnt])*thres;
 
-            joints.push_back(lRmp[j][k]);
-            vels.push_back(v_cnt);
-            velCmd[cnt]=v_cnt;
+            joints.push_back(joint);
+            vels.push_back(vel);
+
+            ostringstream ss;
+            ss<<lDsc[j].key.c_str()<<"_"<<joint;
+            info.addString(ss.str().c_str());
+            info.addDouble(vel);
+
+            velCmd[cnt]=vel;
             cnt++;
         }
 
@@ -1385,53 +1419,37 @@ void ServerCartesianController::sendCtrlCmdMultipleJointsVelocity()
             k=0;
         }
     }
+
+    return info;
 }
 
 
 /************************************************************************/
-void ServerCartesianController::sendCtrlCmdSingleJointPosition()
+Bottle ServerCartesianController::sendCtrlCmdSingleJointPosition()
 {
+    Bottle info;
     int cnt=0;
     int j=0;
-    int k=0;    
+    int k=0;
 
-    Vector q=ctrl->get_q();
+    info.addString("position");
+    info.addString("single");
+
+    Vector q=CTRL_RAD2DEG*ctrl->get_q();
     velCmd=CTRL_RAD2DEG*ctrl->get_qdot();
     for (unsigned int i=0; i<chainState->getN(); i++)
     {
         if (!(*chainState)[i].isBlocked())
-            lPos[j]->setPosition(lRmp[j][k],CTRL_RAD2DEG*q[cnt++]);                
-
-        if (++k>=lJnt[j])
         {
-            j++;
-            k=0;
-        }
-    }
-}
+            int joint=lRmp[j][k];
+            double ref=q[cnt];
+            lPos[j]->setPosition(joint,ref);
 
+            ostringstream ss;
+            ss<<lDsc[j].key.c_str()<<"_"<<joint;
+            info.addString(ss.str().c_str());
+            info.addDouble(ref);
 
-/************************************************************************/
-void ServerCartesianController::sendCtrlCmdSingleJointVelocity()
-{
-    int cnt=0;
-    int j=0;
-    int k=0;    
-
-    Vector v=ctrl->get_qdot();
-    for (unsigned int i=0; i<chainState->getN(); i++)
-    {
-        if (!(*chainState)[i].isBlocked())
-        {
-            double v_cnt=CTRL_RAD2DEG*v[cnt];
-            double thres=lDsc[j].minAbsVels[k];
-
-            // apply bang-bang control to compensate for unachievable low velocities
-            if ((v_cnt!=0.0) && (v_cnt>-thres) && (v_cnt<thres))
-                v_cnt=iCub::ctrl::sign(qdes[cnt]-fb[cnt])*thres;
-
-            lVel[j]->velocityMove(lRmp[j][k],v_cnt);
-            velCmd[cnt]=v_cnt;
             cnt++;
         }
 
@@ -1441,6 +1459,54 @@ void ServerCartesianController::sendCtrlCmdSingleJointVelocity()
             k=0;
         }
     }
+
+    return info;
+}
+
+
+/************************************************************************/
+Bottle ServerCartesianController::sendCtrlCmdSingleJointVelocity()
+{
+    Bottle info;
+    int cnt=0;
+    int j=0;
+    int k=0;
+
+    info.addString("velocity");
+    info.addString("single");
+
+    Vector v=CTRL_RAD2DEG*ctrl->get_qdot();
+    for (unsigned int i=0; i<chainState->getN(); i++)
+    {
+        if (!(*chainState)[i].isBlocked())
+        {
+            int joint=lRmp[j][k];
+            double vel=v[cnt];
+            double thres=lDsc[j].minAbsVels[k];
+
+            // apply bang-bang control to compensate for unachievable low velocities
+            if ((vel!=0.0) && (fabs(vel)<thres))
+                vel=iCub::ctrl::sign(qdes[cnt]-fb[cnt])*thres;
+
+            lVel[j]->velocityMove(joint,vel);
+
+            ostringstream ss;
+            ss<<lDsc[j].key.c_str()<<"_"<<joint;
+            info.addString(ss.str().c_str());
+            info.addDouble(vel);
+
+            velCmd[cnt]=vel;
+            cnt++;
+        }
+
+        if (++k>=lJnt[j])
+        {
+            j++;
+            k=0;
+        }
+    }
+
+    return info;
 }
 
 
@@ -1491,15 +1557,12 @@ void ServerCartesianController::run()
 {    
     if (connected)
     {
+        mutex.lock();
+
         VectorOf<int> jointsToSet;
         jointsHealthy=areJointsHealthyAndSet(jointsToSet);
         if (!jointsHealthy)
-        {
-            stopControl();
-            return;
-        }
-
-        mutex.lock();
+            stopControlHelper();        
 
         string event="none";
 
@@ -1516,7 +1579,7 @@ void ServerCartesianController::run()
 
         // manage the virtual target yielded by a
         // request for a task-space reference velocity
-        if (taskVelModeOn && (++taskRefVelPeriodCnt>=taskRefVelPeriodFactor))
+        if (jointsHealthy && taskVelModeOn && (++taskRefVelPeriodCnt>=taskRefVelPeriodFactor))
         {
             Vector xdot_set_int=taskRefVelTargetGen->integrate(xdot_set);
             goTo(IKINCTRL_POSE_FULL,xdot_set_int,0.0);
@@ -1526,19 +1589,22 @@ void ServerCartesianController::run()
         // get the current target pose
         if (getNewTarget())
         {
-            setJointsCtrlMode(jointsToSet);
-            if (!executingTraj)
+            if (jointsHealthy)
             {
-                ctrl->restart(fb);
-                smithPredictor.restart(fb);
+                setJointsCtrlMode(jointsToSet); 
+                if (!executingTraj)
+                {
+                    ctrl->restart(fb);
+                    smithPredictor.restart(fb);
+                }
+
+                // onset of new trajectory
+                executingTraj=true;
+                event="motion-onset";
+
+                motionOngoingEventsCurrent=motionOngoingEvents;
+                q0=fb;
             }
-
-            // onset of new trajectory
-            executingTraj=true;
-            event="motion-onset";
-
-            motionOngoingEventsCurrent=motionOngoingEvents;
-            q0=fb;
         }
 
         // update the stamp anyway
@@ -1573,13 +1639,21 @@ void ServerCartesianController::run()
                     setTrackingModeHelper(false);
             }            
             else
-                // send commands to the robot
-                (this->*sendCtrlCmd)();
-        }
+            {
+                // send commands to the robot                
+                if (debugInfoEnabled && (portDebugInfo.getOutputCount()>0))
+                {
+                    portDebugInfo.prepare()=(this->*sendCtrlCmd)();
+                    debugInfo.update(txInfo.getTime());
+                    portDebugInfo.setEnvelope(debugInfo);
+                    portDebugInfo.write();
+                }
+                else
+                    (this->*sendCtrlCmd)();
+            }
+        }        
 
-        mutex.unlock();
-
-        // streams out the end-effector pose
+        // stream out the end-effector pose
         if (portState.getOutputCount()>0)
         {
             portState.prepare()=chainState->EndEffPose();
@@ -1597,6 +1671,8 @@ void ServerCartesianController::run()
             motionOngoingEventsFlush();
             notifyEvent(event);
         }
+
+        mutex.unlock();
     }
     else if ((++connectCnt)*getRate()>CARTCTRL_CONNECT_TMO)
     {
@@ -1740,6 +1816,8 @@ bool ServerCartesianController::open(Searchable &config)
 
     multipleJointsControlEnabled=optGeneral.check("MultipleJointsControl",
                                                   Value(CARTCTRL_DEFAULT_MULJNTCTRL)).asString()=="on";
+
+    debugInfoEnabled=optGeneral.check("DebugInfo",Value("off")).asString()=="on";
 
     // scan DRIVER groups
     for (int i=0; i<numDrv; i++)
@@ -2203,12 +2281,10 @@ bool ServerCartesianController::goTo(unsigned int _ctrlPose, const Vector &xd,
         addTokenOption(b,txToken=Time::now());
 
         skipSlvRes=false;
-
         if (latchToken)
             txTokenLatchedGoToRpc=txToken;
 
         portSlvOut.writeStrict();
-
         return true;
     }
     else
@@ -3251,6 +3327,7 @@ bool ServerCartesianController::storeContext(int *id)
         context.straightness=ctrl->get_gamma();
         getPosePriority(context.posePriority);
         getTask2ndOptions(context.task_2);
+        getSolverConvergenceOptions(context.solverConvergence);
 
         *id=contextIdCnt++;
 
@@ -3294,6 +3371,7 @@ bool ServerCartesianController::restoreContext(const int id)
             ctrl->set_gamma(context.straightness);
             setPosePriority(context.posePriority);
             setTask2ndOptions(context.task_2);
+            setSolverConvergenceOptions(context.solverConvergence);
 
             return true;
         }
@@ -3385,14 +3463,15 @@ void ServerCartesianController::notifyEvent(const string &event,
 
     if (portEvent.getOutputCount()>0)
     {
-        Bottle bottle;
-        bottle.addString(event.c_str());
-        bottle.addDouble(time);
+        Bottle &ev=portEvent.prepare();
+        ev.clear();
 
+        ev.addString(event.c_str());
+        ev.addDouble(time);
         if (checkPoint>=0.0)
-            bottle.addDouble(checkPoint);
+            ev.addDouble(checkPoint);
 
-        portEvent.write(bottle);
+        portEvent.writeStrict();
     }
 
     // rise the all-events callback
@@ -3611,6 +3690,52 @@ bool ServerCartesianController::setTask2ndOptions(const Value &v)
 
 
 /************************************************************************/
+bool ServerCartesianController::getSolverConvergenceOptions(Bottle &options)
+{
+    bool ret=false;
+    if (connected)
+    {
+        Bottle command, reply;
+        command.addVocab(IKINSLV_VOCAB_CMD_GET);
+        command.addVocab(IKINSLV_VOCAB_OPT_CONVERGENCE);
+
+        // send command to solver and wait for reply
+        if (portSlvRpc.write(command,reply))
+        {
+            if (ret=(reply.get(0).asVocab()==IKINSLV_VOCAB_REP_ACK))
+                options=*reply.get(1).asList();
+        }
+        else
+            printf("%s error: unable to get reply from solver!\n",ctrlName.c_str());
+    }
+
+    return ret;
+}
+
+
+/************************************************************************/
+bool ServerCartesianController::setSolverConvergenceOptions(const Bottle &options)
+{
+    bool ret=false;
+    if (connected)
+    {
+        Bottle command, reply;
+        command.addVocab(IKINSLV_VOCAB_CMD_SET);
+        command.addVocab(IKINSLV_VOCAB_OPT_CONVERGENCE);
+        command.addList()=options;
+
+        // send command to solver and wait for reply
+        if (portSlvRpc.write(command,reply))
+            ret=(reply.get(0).asVocab()==IKINSLV_VOCAB_REP_ACK);
+        else
+            printf("%s error: unable to get reply from solver!\n",ctrlName.c_str());
+    }
+
+    return ret;
+}
+
+
+/************************************************************************/
 bool ServerCartesianController::tweakSet(const Bottle &options)
 {
     Bottle &opt=const_cast<Bottle&>(options);
@@ -3625,6 +3750,10 @@ bool ServerCartesianController::tweakSet(const Bottle &options)
     // secondary task
     if (opt.check("task_2"))
         ret&=setTask2ndOptions(opt.find("task_2"));
+
+    // solver convergence options
+    if (opt.check("max_iter") || opt.check("tol") || opt.check("translationalTol"))
+        ret&=setSolverConvergenceOptions(options);
 
     mutex.unlock();
     return ret;
@@ -3655,6 +3784,12 @@ bool ServerCartesianController::tweakGet(Bottle &options)
             task2.addString("task_2");
             task2.add(v);
         }
+
+        // solver convergence options
+        Bottle b;
+        ret&=getSolverConvergenceOptions(b);
+        if (ret)
+            options.append(b);
 
         mutex.unlock();
         return ret;

@@ -31,7 +31,7 @@ bool CanBusAnalogSensor::open(yarp::os::Searchable& config)
 
     if (!correct)
     {
-        std::cerr<<"Error: insufficient parameters to CanBusAnalogSensor\n";
+        std::cerr<<"[ERROR] insufficient parameters to CanBusAnalogSensor\n"; 
         return false;
     }
 
@@ -56,13 +56,13 @@ bool CanBusAnalogSensor::open(yarp::os::Searchable& config)
     driver.open(prop);
     if (!driver.isValid())
     {
-        fprintf(stderr, "Error opening PolyDriver check parameters\n");
+        fprintf(stderr, "[ERROR] Error opening PolyDriver check parameters\n");
         return false;
     }
     driver.view(pCanBus);
     if (!pCanBus)
     {
-        fprintf(stderr, "Error opening can device not available\n");
+        fprintf(stderr, "[ERROR] Error opening can device not available\n");
         return false;
     }
     driver.view(pCanBufferFactory);
@@ -207,7 +207,7 @@ bool CanBusAnalogSensor::sensor_start(yarp::os::Searchable& analogConfig)
                     b = readFullScaleAnalog(ch);
                     if (b==true)
                         {
-                            if (attempts>0)    fprintf(stderr, "*** WARNING: Trying to get fullscale data from sensor: channel recovered (ch:%d)\n", ch);
+                            if (attempts>0)    fprintf(stderr, "[WARNING] Trying to get fullscale data from sensor: channel recovered (ch:%d)\n", ch);
                             break;
                         }
                     attempts++;
@@ -215,7 +215,7 @@ bool CanBusAnalogSensor::sensor_start(yarp::os::Searchable& analogConfig)
                 }
                 if (attempts>=15)
                 {
-                    fprintf(stderr, "*** ERROR: Trying to get fullscale data from sensor: all attempts failed (ch:%d)\n", ch);
+                    fprintf(stderr, "[ERROR] Trying to get fullscale data from sensor: all attempts failed (ch:%d)\n", ch);
                 }
             }
 
@@ -412,7 +412,7 @@ bool CanBusAnalogSensor::decode8(const unsigned char *msg, int msg_id, double *d
             {} //skip these, they are not for us
             break;
         default:
-            fprintf(stderr, "Warning, got unexpected class 0x3 msg(s): groupId 0x%x\n", groupId);
+            fprintf(stderr, "[WARNING] CanBusAnalogSensor got unexpected class 0x3 msg(s): groupId 0x%x\n", groupId);
             return false;
             break;
         }
@@ -432,7 +432,7 @@ void CanBusAnalogSensor::run()
     bool res=pCanBus->canRead(inBuffer,CAN_DRIVER_BUFFER_SIZE,&canMessages);
     if (!res)
     {
-        std::cerr<<"canRead failed\n";
+        std::cerr<<"[ERROR] CanBusAnalogSensor canRead failed\n";
     }
 
     double timeNow=Time::now();

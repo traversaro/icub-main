@@ -65,9 +65,9 @@ protected:
     Integrator        *IntState;
     Integrator        *IntPlan;
 
-    Port  port_x;
-    Port  port_q;
-    Port  port_event;
+    BufferedPort<Vector> port_x;
+    BufferedPort<Vector> port_q;
+    BufferedPort<Bottle> port_event;
     Stamp txInfo_x;
     Stamp txInfo_q;
     Stamp txInfo_pose;
@@ -108,7 +108,8 @@ protected:
     void stopLimb(const bool execStopPosition=true);
     void notifyEvent(const string &event, const double checkPoint=-1.0);
     void motionOngoingEventsHandling();
-    void motionOngoingEventsFlush();    
+    void motionOngoingEventsFlush();
+    void stopControlHelper();
 
 public:
     Controller(PolyDriver *_drvTorso, PolyDriver *_drvHead, exchangeData *_commData,
@@ -118,7 +119,7 @@ public:
     void   findMinimumAllowedVergence();
     void   minAllowedVergenceChanged();
     void   resetCtrlEyes();
-    void   doSaccade(const Vector &ang, const Vector &vel);    
+    void   doSaccade(const Vector &ang, const Vector &vel);
     void   stopControl();
     void   set_xdport(xdPort *_port_xd) { port_xd=_port_xd; }
     void   printIter(Vector &xd, Vector &fp, Vector &qd, Vector &q, Vector &v, double printTime);
