@@ -1,4 +1,4 @@
-/* 
+/*
  * Copyright (C) 2010 RobotCub Consortium, European Commission FP6 Project IST-004370
  * Author: Ugo Pattacini
  * email:  ugo.pattacini@iit.it
@@ -17,6 +17,9 @@
 */
 
 #include <gsl/gsl_math.h>
+#include <gsl/gsl_vector.h>
+#include <gsl/gsl_blas.h>
+
 #include <yarp/math/Math.h>
 #include <iCub/ctrl/filters.h>
 
@@ -25,16 +28,59 @@ using namespace yarp::sig;
 using namespace yarp::math;
 using namespace iCub::ctrl;
 
+/***************************************************************************/
+FIFOCircularBuffer::FIFOCircularBuffer()
+{
+    reset(0,yarp::sig::Vector());
+}
+
+/***************************************************************************/
+FIFOCircularBuffer::FIFOCircularBuffer(const unsigned int size, const yarp::sig::Vector & vec)
+{
+    reset(size,vec);
+}
+
+/***************************************************************************/
+void FIFOCircularBuffer::reset(const unsigned int size, const Vector& vec)
+{
+    front = 0;
+    storage.resize(size);
+    for (size_t i=0; i<storage.size(); i++)
+        storage[i] = vec;
+}
+
+/***************************************************************************/
+void FIFOCircularBuffer::insert(const yarp::sig::Vector & vec)
+{
+    front++;
+    front = front % storage.size();
+    storage[front] = vec;
+}
+
+/***************************************************************************/
+unsigned int FIFOCircularBuffer::size() const
+{
+    return storage.size();
+}
+
+
+/***************************************************************************/
+yarp::sig::Vector & FIFOCircularBuffer::operator[](int i)
+{
+    int internal_index = (front-i+storage.size())%storage.size();
+    return storage[internal_index];
+}
+
 
 /***************************************************************************/
 Filter::Filter(const Vector &num, const Vector &den, const Vector &y0)
 {
     b=num;
     a=den;
-    
-    m=b.length(); uold.resize(m-1);
-    n=a.length(); yold.resize(n-1);
-    
+
+    m=b.length();
+    n=a.length();
+
     init(y0);
 }
 
@@ -43,7 +89,7 @@ Filter::Filter(const Vector &num, const Vector &den, const Vector &y0)
 void Filter::init(const Vector &y0)
 {
     // if there is a last input then take it as guess for the next input
-    if (uold[0].size()>0)
+    if (uold.size() > 0 && uold[0].size() == y0.size())
         init(y0,uold[0]);
     else    // otherwise use zero
         init(y0,zeros(y0.length()));
@@ -64,7 +110,7 @@ void Filter::init(const Vector &y0, const Vector &u0)
     double sum_a=0.0;
     for (size_t i=0; i<a.length(); i++)
         sum_a+=a[i];
-    
+
     if (fabs(sum_b)>1e-9)   // if filter DC gain is not zero
         u_init=(sum_a/sum_b)*y0;
     else
@@ -77,12 +123,15 @@ void Filter::init(const Vector &y0, const Vector &u0)
             y_init=a[0]/(a[0]-sum_a)*y;
         // if sum_a==a[0] then the filter can only be initialized to zero
     }
-    
-    for (size_t i=0; i<yold.size(); i++)
-        yold[i]=y_init;
-    
-    for (size_t i=0; i<uold.size(); i++)
-        uold[i]=u_init;
+
+    //for (size_t i=0; i<yold.size(); i++)
+    //    yold[i]=y_init;
+    yold.reset(n-1,y_init);
+
+    //for (size_t i=0; i<uold.size(); i++)
+    //    uold[i]=u_init;
+    uold.reset(m-1,u_init);
+
 }
 
 
@@ -100,11 +149,8 @@ void Filter::setCoeffs(const Vector &num, const Vector &den)
     b=num;
     a=den;
 
-    uold.clear();
-    yold.clear();
-
-    m=b.length(); uold.resize(m-1);
-    n=a.length(); yold.resize(n-1);
+    m=b.length();
+    n=a.length();
 
     init(y);
 }
@@ -124,26 +170,51 @@ bool Filter::adjustCoeffs(const Vector &num, const Vector &den)
         return false;
 }
 
+/***************************************************************************/
+/**
+* Add alpha*X to Y. Equivalent to Y += alpha*X, but avoids memory allocation.
+*
+*/
+void VectorAccumulate(double alpha,
+                      const yarp::sig::Vector & X,
+                      yarp::sig::Vector & Y)
+{
+    gsl_blas_daxpy(alpha,
+                   (const gsl_vector*)X.getGslVector(),
+                   (gsl_vector*)Y.getGslVector());
+}
 
 /***************************************************************************/
-Vector Filter::filt(const Vector &u)
+const Vector& Filter::filt(const Vector &u)
 {
-    y=b[0]*u;
-    
+    //y=b[0]*u;
+    y.zero();
+    VectorAccumulate(b[0],u,y);
+
     for (size_t i=1; i<m; i++)
-        y+=b[i]*uold[i-1];
-    
+    {
+        //y+=b[i]*uold[i-1];
+        VectorAccumulate(b[i],uold[i-1],y);
+    }
+
     for (size_t i=1; i<n; i++)
-        y-=a[i]*yold[i-1];
-    
-    y=(1.0/a[0])*y;
-    
-    uold.push_front(u);
-    uold.pop_back();
-    
-    yold.push_front(y);
-    yold.pop_back();
-    
+    {
+        //y-=a[i]*yold[i-1];
+        VectorAccumulate(-a[i],yold[i-1],y);
+    }
+
+    //y=(1.0/a[0])*y;
+    y *= (1.0/a[0]);
+
+    //uold.push_front(u);
+    //uold.pop_back();
+    uold.insert(u);
+
+    //yold.push_front(y);
+    //yold.pop_back();
+    yold.insert(y);
+
+
     return y;
 }
 
@@ -161,7 +232,7 @@ RateLimiter::RateLimiter(const Vector &rL, const Vector &rU) :
 
 /**********************************************************************/
 void RateLimiter::init(const Vector &u0)
-{ 
+{
     uLim=u0;
 }
 
@@ -194,7 +265,7 @@ Vector RateLimiter::filt(const Vector &u)
             uD[i]=rateLowerLim[i];
     }
 
-    uLim=uLim+uD;
+    uLim+=uD;
 
     return uLim;
 }
@@ -255,7 +326,14 @@ bool FirstOrderLowPassFilter::setSampleTime(const double sampleTime)
 const Vector& FirstOrderLowPassFilter::filt(const Vector &u)
 {
     if(filter!=NULL)
+    {
         y = filter->filt(u);
+        //If the filter is workin
+        //return directly a reference to the underlyng
+        //filter output, to avoid a Vector constructor
+        //call and the relative memory allocation
+        return filter->output();
+    }
     return y;
 }
 
