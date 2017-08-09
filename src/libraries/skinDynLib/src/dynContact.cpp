@@ -102,18 +102,20 @@ bool dynContact::isMomentKnown() const{ return muKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 bool dynContact::isForceDirectionKnown() const{ return fDirKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-bool dynContact::isWrenchKnown() const{
+bool dynContact::isWrenchKnown() const{ return wrenchKnown;}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void dynContact::checkWrenchKnown(){
     if (muKnown)
     {
         if (fDirKnown)
         {
             if(Fmodule!=0.0)
                 wrenchKnown=true;
-            return wrenchKnown;
+            return ;
         }            
     }
     wrenchKnown=false;
-    return wrenchKnown;
+    return ;
 }
 //~~~~~~~~~~~~~~~~~~~~~~
 //   SET methods
@@ -125,6 +127,7 @@ bool dynContact::setForce(const Vector &_F){
     Fmodule = norm(_F);
     if(Fmodule!=0.0)
         Fdir = _F / Fmodule;
+    checkWrenchKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -136,6 +139,7 @@ bool dynContact::setForceModule(double _Fmodule){
     }
     Fmodule = _Fmodule;
     F=Fmodule*Fdir;
+    checkWrenchKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -146,6 +150,7 @@ bool dynContact::setForceDirection(const Vector &_Fdir){
     if(FdirNorm != 0.0)
         Fdir = _Fdir / FdirNorm;
     F=Fmodule*Fdir;
+    checkWrenchKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -153,6 +158,7 @@ bool dynContact::setMoment(const Vector &_Mu){
     if(!checkVectorDim(_Mu, 3, "moment"))
         return false;
     Mu = _Mu;
+    checkWrenchKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

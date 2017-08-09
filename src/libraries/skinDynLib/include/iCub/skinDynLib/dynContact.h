@@ -207,6 +207,12 @@ public:
     * @return true if the wrench is known, false otherwise.
     */
     virtual bool isWrenchKnown()        const;
+
+    /**
+    * Function that revises the information to conclude if the wrench is known or not.
+    * @return true if the wrench is known, false otherwise.
+    */
+    virtual void checkWrenchKnown()        ;
    
     //~~~~~~~~~~~~~~~~~~~~~~
     //   SET methods
