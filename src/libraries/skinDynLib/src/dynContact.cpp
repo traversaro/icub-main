@@ -53,7 +53,8 @@ void dynContact::init(const BodyPart &_bodyPart, unsigned int _linkNumber, const
     Fdir.resize(3, 0.0);
     F.resize(3, 0.0);
     Fmodule = 0.0;
-
+    wrenchKnown=false;
+    
     if(_Mu.size()==0)
         muKnown = false;
     else
@@ -100,6 +101,20 @@ std::string dynContact::getFrameName() const{ return frameName;}
 bool dynContact::isMomentKnown() const{ return muKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 bool dynContact::isForceDirectionKnown() const{ return fDirKnown;}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+bool dynContact::isWrenchKnown() const{
+    if (muKnown)
+    {
+        if (fDirKnown)
+        {
+            if(Fmodule!=0.0)
+                wrenchKnown=true;
+            return wrenchKnown;
+        }            
+    }
+    wrenchKnown=false;
+    return wrenchKnown;
+}
 //~~~~~~~~~~~~~~~~~~~~~~
 //   SET methods
 //~~~~~~~~~~~~~~~~~~~~~~    
