@@ -62,6 +62,8 @@ protected:
     unsigned int activeTaxels;
     // list of active taxel ids
     std::vector<unsigned int> taxelList;
+    // integer which determines the level of trust in the force calibration of the skin
+    int trustSkinThreshold;
     
 public:
     //~~~~~~~~~~~~~~~~~~~~~~
@@ -187,6 +189,11 @@ public:
     * @return the list of taxels' id's
     */
     std::vector<unsigned int>           getTaxelList()          const{ return taxelList; }
+    /**
+    * Get the force calibration trust level.
+    * @return the contact pressure
+    */
+    int                              getTrustSkinThreshold()           const{ return trustSkinThreshold; }
     
    
     //~~~~~~~~~~~~~~~~~~~~~~
@@ -228,6 +235,11 @@ public:
      * @return true if the operation succeeded, false otherwise
      */
     void setTaxelList(const std::vector<unsigned int> &list);
+    /**
+    * Set the force calibration trust level.
+    * @return the contact pressure
+    */
+    int  setTrustSkinThreshold(int _trustSkinThreshold);
 
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     //   SERIALIZATION methods
