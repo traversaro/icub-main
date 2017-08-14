@@ -42,6 +42,8 @@
 #include "iCub/skinDynLib/rpcSkinManager.h"
 #include "iCub/skinDynLib/common.h"
 
+#include "iCub/skinManager/ContactForceTorqueEstimation.h"
+
 using namespace std;
 using namespace yarp::os; 
 using namespace yarp::sig;
@@ -95,6 +97,9 @@ private:
     int calibrationRead;                        // count the calibration reads
     vector<float> start_sum;                    // sum of the values read during the calibration
     vector< vector<int> > skin_empty;           // distribution of the values read during the calibration
+
+    // CONTACT FORCE TORQUE ESTIMATION
+    IContactForceTorqueEstimator* contactForceTorqueEstimator; // Pointer to the force/torque estimator class
     
     // DEVICE
     IAnalogSensor* tactileSensor;               // interface for executing the tactile sensor calibration
