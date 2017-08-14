@@ -40,7 +40,8 @@ Compensator::Compensator(string _name, string _robotName, string outputPortName,
                                             compensationGain(_compensationGain), contactCompensationGain(_contactCompensationGain),
                                             addThreshold(addThreshold), infoPort(_infoPort),
                                             minBaseline(_minBaseline), binarization(_binarization), smoothFilter(_smoothFilter), 
-                                            smoothFactor(_smoothFactor), robotName(_robotName), name(_name), linkNum(_linkNum)
+                                            smoothFactor(_smoothFactor), robotName(_robotName), name(_name), linkNum(_linkNum),
+                                            contactForceTorqueEstimator(0)
 {
     this->zeroUpRawData = _zeroUpRawData;
     _isWorking = init(_name, _robotName, outputPortName, inputPortName);
@@ -54,6 +55,9 @@ Compensator::~Compensator(){
 
     compensatedTactileDataPort.interrupt();
     compensatedTactileDataPort.close();
+
+    delete contactForceTorqueEstimator;
+    contactForceTorqueEstimator = 0;
 }
 
 bool Compensator::init(string name, string robotName, string outputPortName, string inputPortName){
@@ -149,9 +153,18 @@ bool Compensator::init(string name, string robotName, string outputPortName, str
                 break;
             }
         }
-        if(skinBroken)
+        if(skinBroken) {
             sendInfoMsg("The output of all the taxels is 0. Probably there is a hardware problem.");
-        return !skinBroken;
+            return false;
+        }
+    }
+
+    // initialize the contactForceTorque estimator
+    contactForceTorqueEstimator = new DummyContactForceTorqueEstimator();
+
+    if (!contactForceTorqueEstimator) {
+        sendInfoMsg("Impossible to  create the contactForceTorqueEstimator object.");
+        return false;
     }
 
     return true;
@@ -550,8 +563,10 @@ skinContactList Compensator::getContacts(){
         if(activeTaxelsGeo!=0)      geoCenter   /= activeTaxelsGeo;
         pressure    /= activeTaxels;
         skinContact c(bodyPart, skinPart, linkNum, CoP, geoCenter, taxelList, pressure, normal);
-        // set an estimate of the force that is with normal direction and intensity equal to the pressure
-        c.setForce(-0.05*activeTaxels*pressure*normal);
+
+        // Set an estimate of the force/torque for this specific contact
+        contactForceTorqueEstimator->computeContactForceTorque(c);
+
         contactList.push_back(c);
     }
     //printf("ContactList: %s\n", contactList.toString().c_str());
