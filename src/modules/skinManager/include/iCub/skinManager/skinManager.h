@@ -125,6 +125,9 @@ These are the parameters of this section:
     missing calibration procedure for that skin part).
  - \c maxNeighborDist \c 0.015 \n
     maximum distance between two neighbor tactile sensors (in meters).
+ - \c skinForceEstimationFiles [emptyList] \n
+    list of the files containing the algorithm and the eventual parameter used to estimate the contact force from the
+    raw output of the taxels.
  
 
 \section portsa_sec Ports Accessed

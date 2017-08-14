@@ -565,7 +565,7 @@ skinContactList Compensator::getContacts(){
         skinContact c(bodyPart, skinPart, linkNum, CoP, geoCenter, taxelList, pressure, normal);
 
         // Set an estimate of the force/torque for this specific contact
-        contactForceTorqueEstimator->computeContactForceTorque(c);
+        contactForceTorqueEstimator->computeContactForceTorque(c, taxelPos, taxelOri, rawData, compensatedDataFilt);
 
         contactList.push_back(c);
     }
@@ -757,6 +757,53 @@ bool Compensator::setTaxelPosesFromFile(const char *filePath){
         }
         computeNeighbors();
         poseSem.post();
+    }
+
+    return true;
+}
+
+bool Compensator::setContactForceTorqueEstimatationFromFile(const char *filePath){
+    yarp::os::ResourceFinder rf;
+    rf.setVerbose(false);
+    rf.setDefaultContext("skinGui");
+    rf.setDefaultConfigFile(filePath);
+    rf.configure(0,NULL);
+    rf.setVerbose(true);
+
+    // Default to the dummy estimator
+    std::string estimatorType = rf.check("contactForceTorqueEstimatorType",
+                                         yarp::os::Value("DummyContactForceTorqueEstimator"),
+                                         "Type of contactForceTorqueEstimator").asString();
+
+    // If the number of estimator will increase in the future, consider migrating
+    // this code to a Factory pattern, eventually using yarp devices
+    if (estimatorType == "DummyContactForceTorqueEstimator")
+    {
+        delete contactForceTorqueEstimator;
+        contactForceTorqueEstimator = new DummyContactForceTorqueEstimator();
+    }
+    else if (estimatorType == "PolynomialTaxelCalibrationNoInterpolation")
+    {
+        delete contactForceTorqueEstimator;
+        contactForceTorqueEstimator = new PolynomialTaxelCalibrationNoInterpolation();
+    }
+    else
+    {
+        stringstream ss;
+        ss<<"Error: unknown contactForceTorqueEstimatorType " << estimatorType << " from file " << filePath;
+        sendInfoMsg(ss.str());
+        return false;
+    }
+
+    // Configure the estimator
+    bool ok = contactForceTorqueEstimator->open(rf, taxelPos, taxelOri);
+
+    if (!ok)
+    {
+        stringstream ss;
+        ss<<"Error in configuring contactForceTorqueEstimator from file " << filePath;
+        sendInfoMsg(ss.str());
+        return false;
     }
 
     return true;
