@@ -184,6 +184,27 @@ bool CompensationThread::threadInit()
                 }
             }
         }
+
+        if(skinEventsConf.check("skinForceEstimationFiles")){
+            Bottle *skinForceEstimationFiles = skinEventsConf.find("skinForceEstimationFiles").asList();
+            if(portNum!=skinForceEstimationFiles->size()){
+                stringstream msg;
+                msg<< "Mismatching number of skin force estimation files and input ports ("
+                   <<portNum<< " in ports; "<< skinForceEstimationFiles->size()<< " skin force estimation files). ";
+                msg<< "Skin force estimation will fallback to the default method.";
+                msg<< ". Skin force estimation file list: "<< skinForceEstimationFiles->toString().c_str();
+                sendDebugMsg(msg.str());
+            }
+            else{
+                FOR_ALL_PORTS(i){
+                    if(compWorking[i]){
+                        string skinForceEstimationFile = skinForceEstimationFiles->get(i).asString().c_str();
+                        string filePath(rf->findFile(skinForceEstimationFile.c_str()));
+                        compensators[i]->setContactForceTorqueEstimatationFromFile(filePath.c_str());
+                    }
+                }
+            }
+        }
     }
     if(skinEventsOn)
         sendDebugMsg("Skin events ENABLED.");
