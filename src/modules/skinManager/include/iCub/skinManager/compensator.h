@@ -169,6 +169,7 @@ public:
     bool setTaxelOrientations(const vector<Vector> &orientations);
     bool setTaxelOrientation(unsigned int taxelId, const Vector &orientation);
     void setSkinPart(SkinPart _skinPart);
+    bool setContactForceTorqueEstimatationFromFile(const char *filePath);
 
     Vector getTouchThreshold();
     bool getBinarization(){     return binarization; }

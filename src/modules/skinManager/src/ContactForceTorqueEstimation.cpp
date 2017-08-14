@@ -21,6 +21,8 @@
 #include <yarp/math/Math.h>
 using namespace yarp::math;
 
+#include <yarp/os/LogStream.h>
+
 namespace iCub
 {
 namespace skinManager
@@ -38,7 +40,19 @@ DummyContactForceTorqueEstimator::~DummyContactForceTorqueEstimator()
 {
 }
 
-void DummyContactForceTorqueEstimator::computeContactForceTorque(iCub::skinDynLib::skinContact &contact)
+bool DummyContactForceTorqueEstimator::open(yarp::os::Searchable&,
+                                            const std::vector<yarp::sig::Vector>& /*taxelOrigins*/,
+                                            const std::vector<yarp::sig::Vector>& /*taxelNormals*/)
+
+{
+    return true;
+}
+
+void DummyContactForceTorqueEstimator::computeContactForceTorque(iCub::skinDynLib::skinContact &contact,
+                                                                 const std::vector<yarp::sig::Vector>& /*taxelOrigins*/,
+                                                                 const std::vector<yarp::sig::Vector>& /*taxelNormals*/,
+                                                                 const yarp::sig::Vector& /*rawTaxelData*/,
+                                                                 const yarp::sig::Vector& /*compensatedTaxelData*/)
 {
     // set an estimate of the force that is with normal direction and intensity equal to the pressure
     double pressure = contact.getPressure();
@@ -48,6 +62,123 @@ void DummyContactForceTorqueEstimator::computeContactForceTorque(iCub::skinDynLi
 }
 
 
+PolynomialTaxelCalibrationNoInterpolation::PolynomialTaxelCalibrationNoInterpolation()
+{
+}
+
+PolynomialTaxelCalibrationNoInterpolation::~PolynomialTaxelCalibrationNoInterpolation()
+{
+}
+
+bool PolynomialTaxelCalibrationNoInterpolation::open(yarp::os::Searchable& config,
+                                                     const std::vector<yarp::sig::Vector>& taxelOrigins,
+                                                     const std::vector<yarp::sig::Vector>& taxelNormals)
+{
+    // Check for the polynomialOrder
+    if ( !(config.check("polynomialOrder")) || (!config.find("polynomialOrder").isInt()) )
+    {
+        yError() << "PolynomialTaxelCalibrationNoInterpolation: impossible to find required integer parameter polynomialOrder";
+        return false;
+    }
+
+    int signedPolynomialOrder = config.find("polynomialOrder").asInt();
+
+    if (signedPolynomialOrder < 0)
+    {
+        yError() << "PolynomialTaxelCalibrationNoInterpolation: polynomialOrder needs to be nonnegative";
+        return false;
+    }
+
+    polynomialOrder = signedPolynomialOrder;
+
+    if ( !(config.check("taxelAreaInSquaredMeters")) || (!config.find("taxelAreaInSquaredMeters").isInt()) )
+    {
+        yError() << "PolynomialTaxelCalibrationNoInterpolation: impossible to find required floating point parameter taxelAreaInSquaredMeters";
+        return false;
+    }
+
+    taxelAreaInSquaredMeters = config.find("taxelAreaInSquaredMeters").asDouble();
+
+    if (taxelAreaInSquaredMeters < 0)
+    {
+        yError() << "PolynomialTaxelCalibrationNoInterpolation: taxelAreaInSquaredMeters needs to be nonnegative";
+        return false;
+    }
+
+    // Check the polyonomial parameters
+    yarp::os::Bottle &calibration = config.findGroup("ContactForceTorqueEstimatorParameters");
+    if (calibration.isNull())
+    {
+        yError() << "PolynomialTaxelCalibrationNoInterpolation: impossible to find required group ContactForceTorqueEstimatorParameters";
+        return false;
+    }
+    else
+    {
+        int taxelCalibrationLines = calibration.size()-1;
+
+        if (taxelCalibrationLines != taxelOrigins.size())
+        {
+            yError() << "PolynomialTaxelCalibrationNoInterpolation: error in size in ContactForceTorqueEstimatorParameters group";
+            return false;
+        }
+
+        polynomialCoeffients.resize(taxelCalibrationLines, zeros(polynomialOrder));
+
+        for (int i = 0; i < taxelCalibrationLines; ++i)
+        {
+            polynomialCoeffients[i] = iCub::skinDynLib::vectorFromBottle(*(calibration.get(i + 1).asList()), 0, polynomialOrder);
+        }
+    }
+
+    return true;
+}
+
+void PolynomialTaxelCalibrationNoInterpolation::computeContactForceTorque(iCub::skinDynLib::skinContact &contact,
+                                                                 const std::vector<yarp::sig::Vector>& taxelOrigins,
+                                                                 const std::vector<yarp::sig::Vector>& taxelNormals,
+                                                                 const yarp::sig::Vector& rawTaxelData,
+                                                                 const yarp::sig::Vector& compensatedTaxelData)
+{
+    // Result of the calibration
+    yarp::sig::Vector totalForce(3, 0.0), taxelForce(3, 0.0);
+    yarp::sig::Vector totalTorque(3, 0.0), taxelTorque(3, 0.0);
+
+    // Iterate on all taxels present in the contact (this should already exclude temperature taxels)
+    taxelListBuffer = contact.getTaxelList();
+    for (std::vector<unsigned int>::iterator it = taxelListBuffer.begin(); it != taxelListBuffer.end(); ++it)
+    {
+        // Get the taxelId
+        unsigned int taxelId = *it;
+
+        // Compute the calibrated pressure
+        double taxelPressure = 0.0;
+        double kThPowerOfRawOutput = 1.0;
+        for (int k = 0; k <= polynomialOrder; ++k, kThPowerOfRawOutput = kThPowerOfRawOutput * rawTaxelData[taxelId])
+        {
+            // Polynomial coefficient are stored from the higher to the lower
+            // There are alternative algorithms for evaluating polynomials that
+            // introduce less numerical error, but for now use this formula for
+            // consistency with the one used for estimation
+            taxelPressure += kThPowerOfRawOutput * (polynomialCoeffients[taxelId][polynomialOrder - 1 - k]);
+        }
+
+        // As all complex formulas involving yarp::sig::Vector object, this call involve
+        // a lot of dynamic memory allocation, and could be a performance bottleneck
+
+        // Compute the force
+        taxelForce = (taxelPressure*taxelAreaInSquaredMeters)*taxelNormals[taxelId];
+        totalForce += taxelForce;
+
+        // Compute the torque (that is expressed with respect to the "center" of the contact)
+        // TODO(traversaro, fjandrad): check the sign of the first term
+        taxelTorque = cross(taxelOrigins[taxelId] - contact.getCoP(), totalForce);
+        totalTorque += taxelTorque;
+    }
+
+    // Store the estimation result
+    contact.setForceMoment(totalForce, totalTorque);
+    return;
+}
 
 }
 }
