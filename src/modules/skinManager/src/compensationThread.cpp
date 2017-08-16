@@ -194,13 +194,15 @@ bool CompensationThread::threadInit()
                 msg<< "Skin force estimation will fallback to the default method.";
                 msg<< ". Skin force estimation file list: "<< skinForceEstimationFiles->toString().c_str();
                 sendDebugMsg(msg.str());
+                return false;
             }
             else{
                 FOR_ALL_PORTS(i){
                     if(compWorking[i]){
                         string skinForceEstimationFile = skinForceEstimationFiles->get(i).asString().c_str();
                         string filePath(rf->findFile(skinForceEstimationFile.c_str()));
-                        compensators[i]->setContactForceTorqueEstimatationFromFile(filePath.c_str());
+                        bool ok = compensators[i]->setContactForceTorqueEstimatationFromFile(filePath.c_str());
+                        if (!ok) return false;
                     }
                 }
             }

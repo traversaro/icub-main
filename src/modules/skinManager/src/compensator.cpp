@@ -159,14 +159,6 @@ bool Compensator::init(string name, string robotName, string outputPortName, str
         }
     }
 
-    // initialize the contactForceTorque estimator
-    contactForceTorqueEstimator = new DummyContactForceTorqueEstimator();
-
-    if (!contactForceTorqueEstimator) {
-        sendInfoMsg("Impossible to  create the contactForceTorqueEstimator object.");
-        return false;
-    }
-
     return true;
 }
 
@@ -811,6 +803,8 @@ bool Compensator::setContactForceTorqueEstimatationFromFile(const char *filePath
         sendInfoMsg(ss.str());
         return false;
     }
+
+    std::cerr << "Correctly configure estimator of type " << estimatorType << " on frame " << std::endl;
 
     return true;
 }
