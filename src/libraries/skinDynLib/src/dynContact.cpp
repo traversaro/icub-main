@@ -105,10 +105,12 @@ bool dynContact::isForceDirectionKnown() const{ return fDirKnown;}
 bool dynContact::isForceMomentKnown() const{ return forceMomentKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 void dynContact::checkForceMomentKnown(){
-    if (muKnown)
+    if (norm(Mu)!=0.0)
     {
-        if (fDirKnown)
+        muKnown=true;
+        if (norm(Fdir)==1.0)
         {
+            fDirKnown=true;
             if(Fmodule!=0.0)
                 forceMomentKnown=true;
             return ;
