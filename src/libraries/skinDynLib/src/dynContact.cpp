@@ -53,7 +53,7 @@ void dynContact::init(const BodyPart &_bodyPart, unsigned int _linkNumber, const
     Fdir.resize(3, 0.0);
     F.resize(3, 0.0);
     Fmodule = 0.0;
-    wrenchKnown=false;
+    forceMomentKnown=false;
     
     if(_Mu.size()==0)
         muKnown = false;
@@ -102,19 +102,19 @@ bool dynContact::isMomentKnown() const{ return muKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 bool dynContact::isForceDirectionKnown() const{ return fDirKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-bool dynContact::isWrenchKnown() const{ return wrenchKnown;}
+bool dynContact::isForceMomentKnown() const{ return forceMomentKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-void dynContact::checkWrenchKnown(){
+void dynContact::checkForceMomentKnown(){
     if (muKnown)
     {
         if (fDirKnown)
         {
             if(Fmodule!=0.0)
-                wrenchKnown=true;
+                forceMomentKnown=true;
             return ;
         }            
     }
-    wrenchKnown=false;
+    forceMomentKnown=false;
     return ;
 }
 //~~~~~~~~~~~~~~~~~~~~~~
@@ -127,7 +127,7 @@ bool dynContact::setForce(const Vector &_F){
     Fmodule = norm(_F);
     if(Fmodule!=0.0)
         Fdir = _F / Fmodule;
-    checkWrenchKnown();
+    checkForceMomentKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -139,7 +139,7 @@ bool dynContact::setForceModule(double _Fmodule){
     }
     Fmodule = _Fmodule;
     F=Fmodule*Fdir;
-    checkWrenchKnown();
+    checkForceMomentKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -150,7 +150,7 @@ bool dynContact::setForceDirection(const Vector &_Fdir){
     if(FdirNorm != 0.0)
         Fdir = _Fdir / FdirNorm;
     F=Fmodule*Fdir;
-    checkWrenchKnown();
+    checkForceMomentKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -158,7 +158,7 @@ bool dynContact::setMoment(const Vector &_Mu){
     if(!checkVectorDim(_Mu, 3, "moment"))
         return false;
     Mu = _Mu;
-    checkWrenchKnown();
+    checkForceMomentKnown();
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

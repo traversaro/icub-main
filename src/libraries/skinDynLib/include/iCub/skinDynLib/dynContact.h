@@ -77,7 +77,7 @@ protected:
     bool fDirKnown;
     
     /// True if the wrench (force and moment) is known
-    bool wrenchKnown;
+    bool forceMomentKnown;
 
     ///verbosity flag
     unsigned int verbose;
@@ -206,13 +206,13 @@ public:
     * Get true if the wrench applied at this contact is known a-priori.
     * @return true if the wrench is known, false otherwise.
     */
-    virtual bool isWrenchKnown()        const;
+    virtual bool isForceMomentKnown()        const;
 
     /**
     * Function that revises the information to conclude if the wrench is known or not.
     * @return true if the wrench is known, false otherwise.
     */
-    virtual void checkWrenchKnown()        ;
+    virtual void checkForceMomentKnown()        ;
    
     //~~~~~~~~~~~~~~~~~~~~~~
     //   SET methods
