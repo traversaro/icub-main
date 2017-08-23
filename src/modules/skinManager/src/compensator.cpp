@@ -158,6 +158,9 @@ bool Compensator::init(string name, string robotName, string outputPortName, str
             return false;
         }
     }
+    
+    // Set the default force estimator 
+    contactForceTorqueEstimator = new DummyContactForceTorqueEstimator();
 
     return true;
 }
@@ -555,6 +558,8 @@ skinContactList Compensator::getContacts(){
         if(activeTaxelsGeo!=0)      geoCenter   /= activeTaxelsGeo;
         pressure    /= activeTaxels;
         skinContact c(bodyPart, skinPart, linkNum, CoP, geoCenter, taxelList, pressure, normal);
+        c.setLinkName("dummy");
+        c.setFrameName("dummy");
 
         c.setLinkName(name);
         c.setFrameName(frameName);

@@ -91,7 +91,7 @@ bool PolynomialTaxelCalibrationNoInterpolation::open(yarp::os::Searchable& confi
 
     polynomialOrder = signedPolynomialOrder;
 
-    if ( !(config.check("taxelAreaInSquaredMeters")) || (!config.find("taxelAreaInSquaredMeters").isInt()) )
+    if ( !(config.check("taxelAreaInSquaredMeters")) || (!config.find("taxelAreaInSquaredMeters").isDouble()) )
     {
         yError() << "PolynomialTaxelCalibrationNoInterpolation: impossible to find required floating point parameter taxelAreaInSquaredMeters";
         return false;
