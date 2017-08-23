@@ -550,6 +550,8 @@ skinContactList Compensator::getContacts(){
         if(activeTaxelsGeo!=0)      geoCenter   /= activeTaxelsGeo;
         pressure    /= activeTaxels;
         skinContact c(bodyPart, skinPart, linkNum, CoP, geoCenter, taxelList, pressure, normal);
+        c.setLinkName(name);
+        c.setFrameName(frameName);
         // set an estimate of the force that is with normal direction and intensity equal to the pressure
         c.setForce(-0.05*activeTaxels*pressure*normal);
         contactList.push_back(c);
@@ -741,6 +743,9 @@ bool Compensator::setTaxelPosesFromFile(const char *filePath){
                 taxelPoseConfidence[i] = 1.0;
         }
         computeNeighbors();
+        // Set link name and frame name
+        linkName = rf.find("name").asString();
+        frameName = rf.find("frameName").asString();
         poseSem.post();
     }
 
