@@ -558,8 +558,6 @@ skinContactList Compensator::getContacts(){
         if(activeTaxelsGeo!=0)      geoCenter   /= activeTaxelsGeo;
         pressure    /= activeTaxels;
         skinContact c(bodyPart, skinPart, linkNum, CoP, geoCenter, taxelList, pressure, normal);
-        c.setLinkName("dummy");
-        c.setFrameName("dummy");
 
         c.setLinkName(name);
         c.setFrameName(frameName);
