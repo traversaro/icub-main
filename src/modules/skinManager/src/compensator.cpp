@@ -559,7 +559,7 @@ skinContactList Compensator::getContacts(){
         pressure    /= activeTaxels;
         skinContact c(bodyPart, skinPart, linkNum, CoP, geoCenter, taxelList, pressure, normal);
 
-        c.setLinkName(name);
+        c.setLinkName(linkName);
         c.setFrameName(frameName);
 
         // Set an estimate of the force/torque for this specific contact
