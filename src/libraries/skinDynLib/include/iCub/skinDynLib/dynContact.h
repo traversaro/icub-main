@@ -208,12 +208,6 @@ public:
     */
     virtual bool isForceMomentKnown()        const;
 
-    /**
-    * Function that revises the information to conclude if the wrench is known or not.
-    * @return true if the wrench is known, false otherwise.
-    */
-    virtual void checkForceMomentKnown()        ;
-   
     //~~~~~~~~~~~~~~~~~~~~~~
     //   SET methods
     //~~~~~~~~~~~~~~~~~~~~~~    
@@ -306,6 +300,15 @@ public:
     */
     virtual bool fixMoment(const yarp::sig::Vector &_Mu);
     /**
+    * Fix the the contact force and the moment. Differently from the method
+    * setForceMoment, this method also sets the flag 'forceMomentKnown'
+    * to true, so when estimating the contact wrenches the solver considers the
+    * force and moment of this contact as known a-priori.
+    * @param _Fdir the contact force direction
+    * @return true iff operation succeeded, false otherwise
+    */
+    virtual bool fixForceMoment(const yarp::sig::Vector &_FMu);
+    /**
      * Set the flag fDirKnown to false so that when estimating the contact wrenches 
      * the solver estimates also the force direction and does not consider it as known
      * a-priori.
@@ -317,6 +320,12 @@ public:
      * a-priori.
      */
     virtual void unfixMoment();
+    /**
+     * Set the flag forceMomentKnown to false so that when estimating the contact wrenches
+     * the solver estimates the force and moment considering them unkown.
+     * a-priori.
+     */
+    virtual void unfixForceMoment();
 
     //~~~~~~~~~~~~~~~~~~~~~~
     //   SERIALIZATION methods

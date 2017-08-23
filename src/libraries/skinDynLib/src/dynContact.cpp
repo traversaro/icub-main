@@ -104,21 +104,6 @@ bool dynContact::isForceDirectionKnown() const{ return fDirKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 bool dynContact::isForceMomentKnown() const{ return forceMomentKnown;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-void dynContact::checkForceMomentKnown(){
-    if (norm(Mu)!=0.0)
-    {
-        muKnown=true;
-        if (norm(Fdir)==1.0)
-        {
-            fDirKnown=true;
-            if(Fmodule!=0.0)
-                forceMomentKnown=true;
-            return ;
-        }            
-    }
-    forceMomentKnown=false;
-    return ;
-}
 //~~~~~~~~~~~~~~~~~~~~~~
 //   SET methods
 //~~~~~~~~~~~~~~~~~~~~~~    
@@ -128,8 +113,7 @@ bool dynContact::setForce(const Vector &_F){
     F = _F;
     Fmodule = norm(_F);
     if(Fmodule!=0.0)
-        Fdir = _F / Fmodule;
-    checkForceMomentKnown();
+        Fdir = _F / Fmodule;   
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -140,8 +124,7 @@ bool dynContact::setForceModule(double _Fmodule){
         return false;
     }
     Fmodule = _Fmodule;
-    F=Fmodule*Fdir;
-    checkForceMomentKnown();
+    F=Fmodule*Fdir;   
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -151,16 +134,14 @@ bool dynContact::setForceDirection(const Vector &_Fdir){
     double FdirNorm = norm(_Fdir);
     if(FdirNorm != 0.0)
         Fdir = _Fdir / FdirNorm;
-    F=Fmodule*Fdir;
-    checkForceMomentKnown();
+    F=Fmodule*Fdir;   
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 bool dynContact::setMoment(const Vector &_Mu){
     if(!checkVectorDim(_Mu, 3, "moment"))
         return false;
-    Mu = _Mu;
-    checkForceMomentKnown();
+    Mu = _Mu;   
     return true;
 }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -219,10 +200,20 @@ bool dynContact::fixMoment(const Vector &_Mu){
     }
     return false;
 }
+//~~~~~~~~~~~~~~~~~~~~~~
+bool dynContact::fixForceMoment(const Vector &_FMu){
+    if(setForceMoment(_FMu)){
+        forceMomentKnown = true;
+        return true;
+    }
+    return false;
+}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 void dynContact::unfixForceDirection(){ fDirKnown=false;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 void dynContact::unfixMoment(){ muKnown=false;}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+void dynContact::unfixForceMoment(){ forceMomentKnown=false;}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //~~~~~~~~~~~~~~~~~~~~~~
 //   SERIALIZATION methods
