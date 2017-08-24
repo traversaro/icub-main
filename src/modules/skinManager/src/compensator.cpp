@@ -160,6 +160,9 @@ bool Compensator::init(string name, string robotName, string outputPortName, str
         }
     }
 
+    // Set the default force estimator
+    contactForceTorqueEstimator = new DummyContactForceTorqueEstimator();
+
     return true;
 }
 
@@ -559,8 +562,10 @@ skinContactList Compensator::getContacts(){
 
         c.setLinkName(linkName);
         c.setFrameName(frameName);
+
         // Set an estimate of the force/torque for this specific contact
         contactForceTorqueEstimator->computeContactForceTorque(c, taxelPos, taxelOri, rawData, compensatedDataFilt);
+
         contactList.push_back(c);
     }
     //printf("ContactList: %s\n", contactList.toString().c_str());

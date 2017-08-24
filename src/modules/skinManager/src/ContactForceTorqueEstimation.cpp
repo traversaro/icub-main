@@ -91,7 +91,7 @@ bool PolynomialTaxelCalibrationNoInterpolation::open(yarp::os::Searchable& confi
 
     polynomialOrder = signedPolynomialOrder;
 
-    if ( !(config.check("taxelAreaInSquaredMeters")) || (!config.find("taxelAreaInSquaredMeters").isInt()) )
+    if ( !(config.check("taxelAreaInSquaredMeters")) || (!config.find("taxelAreaInSquaredMeters").isDouble()) )
     {
         yError() << "PolynomialTaxelCalibrationNoInterpolation: impossible to find required floating point parameter taxelAreaInSquaredMeters";
         return false;
@@ -122,11 +122,11 @@ bool PolynomialTaxelCalibrationNoInterpolation::open(yarp::os::Searchable& confi
             return false;
         }
 
-        polynomialCoeffients.resize(taxelCalibrationLines, zeros(polynomialOrder));
+        polynomialCoeffients.resize(taxelCalibrationLines, zeros(polynomialOrder+1));
 
         for (int i = 0; i < taxelCalibrationLines; ++i)
         {
-            polynomialCoeffients[i] = iCub::skinDynLib::vectorFromBottle(*(calibration.get(i + 1).asList()), 0, polynomialOrder);
+            polynomialCoeffients[i] = iCub::skinDynLib::vectorFromBottle(*(calibration.get(i + 1).asList()), 0, polynomialOrder+1);
         }
     }
 
@@ -142,6 +142,8 @@ void PolynomialTaxelCalibrationNoInterpolation::computeContactForceTorque(iCub::
     // Result of the calibration
     yarp::sig::Vector totalForce(3, 0.0), taxelForce(3, 0.0);
     yarp::sig::Vector totalTorque(3, 0.0), taxelTorque(3, 0.0);
+    // yError()<<"Starting contact estimate" ;
+    // double force=0;
 
     // Iterate on all taxels present in the contact (this should already exclude temperature taxels)
     taxelListBuffer = contact.getTaxelList();
@@ -153,27 +155,30 @@ void PolynomialTaxelCalibrationNoInterpolation::computeContactForceTorque(iCub::
         // Compute the calibrated pressure
         double taxelPressure = 0.0;
         double kThPowerOfRawOutput = 1.0;
-        for (int k = 0; k <= polynomialOrder; ++k, kThPowerOfRawOutput = kThPowerOfRawOutput * rawTaxelData[taxelId])
+        for (int k = 0; k <= polynomialOrder; ++k, kThPowerOfRawOutput = kThPowerOfRawOutput * (255-rawTaxelData[taxelId]))
         {
             // Polynomial coefficient are stored from the higher to the lower
             // There are alternative algorithms for evaluating polynomials that
             // introduce less numerical error, but for now use this formula for
             // consistency with the one used for estimation
-            taxelPressure += kThPowerOfRawOutput * (polynomialCoeffients[taxelId][polynomialOrder - 1 - k]);
+            taxelPressure += kThPowerOfRawOutput * (polynomialCoeffients[taxelId][polynomialOrder - k]);
         }
+        // yError()<<"Taxel Pressure"<<taxelPressure<<" rawTaxelData "<< rawTaxelData[taxelId] << "inverted rawTaxelData" <<(255-rawTaxelData[taxelId]) ;
 
         // As all complex formulas involving yarp::sig::Vector object, this call involve
         // a lot of dynamic memory allocation, and could be a performance bottleneck
 
         // Compute the force
-        taxelForce = (taxelPressure*taxelAreaInSquaredMeters)*taxelNormals[taxelId];
+        taxelForce = (taxelPressure*taxelAreaInSquaredMeters*1000)*taxelNormals[taxelId];
         totalForce += taxelForce;
+        //force+=(taxelPressure*taxelAreaInSquaredMeters*1000);
 
         // Compute the torque (that is expressed with respect to the "center" of the contact)
         // TODO(traversaro, fjandrad): check the sign of the first term
         taxelTorque = cross(taxelOrigins[taxelId] - contact.getCoP(), totalForce);
         totalTorque += taxelTorque;
     }
+    // yError()<<"Taxel Force"<<totalForce.toString()<<" Force magnitude "<<force;
 
     // Store the estimation result
     contact.setForceMoment(totalForce, totalTorque);

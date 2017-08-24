@@ -509,10 +509,17 @@ void ObjectsManager::manage(iCub::skinDynLib::skinContactList &forces)
 
         int p=forces[i].getBodyPart();
         int l=forces[i].getLinkNumber();
-
-        if (mAB[p][l])
+        
+        if (p >= 0 && p < 8 && l >= 0 && l < 8)
         {
-            mAB[p][l]->addArrow(new ForceArrow(P[0],P[1],P[2],f,F[0],F[1],F[2],M[0],M[1],M[2]));
+            if (mAB[p][l])
+            {
+                mAB[p][l]->addArrow(new ForceArrow(P[0],P[1],P[2],f,F[0],F[1],F[2],M[0],M[1],M[2]));
+            }
+        } 
+        else 
+        {
+            std::cerr << "iCubGui: unexpected body part " << p << " or link index " << l << " contained in received skinContactList." << std::endl;
         }
     }
 }

@@ -83,6 +83,12 @@ const Skin_2_Body SkinPart_2_BodyPart[SKIN_PART_SIZE] = {
     {SKIN_RIGHT_FOREARM,    RIGHT_ARM},
     {SKIN_RIGHT_UPPER_ARM,  RIGHT_ARM}, 
     {SKIN_FRONT_TORSO,      TORSO},
+    {LEFT_LEG_UPPER,        LEFT_LEG},
+    {LEFT_LEG_LOWER,        LEFT_LEG},
+    {LEFT_FOOT,             LEFT_LEG},
+    {RIGHT_LEG_UPPER,       RIGHT_LEG},
+    {RIGHT_LEG_LOWER,       RIGHT_LEG},
+    {RIGHT_FOOT,            RIGHT_LEG},
     {SKIN_PART_ALL,         BODY_PART_ALL}
 };
 
@@ -97,6 +103,12 @@ const Skin_2_Link SkinPart_2_LinkNum[SKIN_PART_SIZE] = {
     {SKIN_RIGHT_FOREARM,     4},
     {SKIN_RIGHT_UPPER_ARM,   2}, 
     {SKIN_FRONT_TORSO,       2},
+    {LEFT_LEG_UPPER,         2},
+    {LEFT_LEG_LOWER,         3},
+    {LEFT_FOOT,              5},
+    {RIGHT_LEG_UPPER,        2},
+    {RIGHT_LEG_LOWER,        3},
+    {RIGHT_FOOT,             5},
     {SKIN_PART_ALL,         -1}
 };
 #endif
