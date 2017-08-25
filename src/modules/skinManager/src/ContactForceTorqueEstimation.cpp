@@ -34,6 +34,7 @@ IContactForceTorqueEstimator::~IContactForceTorqueEstimator()
 
 DummyContactForceTorqueEstimator::DummyContactForceTorqueEstimator()
 {
+    forceTorqueEstimateConfidence=0;
 }
 
 DummyContactForceTorqueEstimator::~DummyContactForceTorqueEstimator()
@@ -58,12 +59,15 @@ void DummyContactForceTorqueEstimator::computeContactForceTorque(iCub::skinDynLi
     double pressure = contact.getPressure();
     unsigned int activeTaxels = contact.getActiveTaxels();
     contact.setForce(-0.05*activeTaxels*pressure*contact.getNormalDir());
+    //set forceTorqueEstimateConfidence should be 0 -> no confidence
+    contact.setForceTorqueEstimateConfidence(forceTorqueEstimateConfidence);
     return;
 }
 
 
 PolynomialTaxelCalibrationNoInterpolation::PolynomialTaxelCalibrationNoInterpolation()
 {
+    forceTorqueEstimateConfidence=1;
 }
 
 PolynomialTaxelCalibrationNoInterpolation::~PolynomialTaxelCalibrationNoInterpolation()
@@ -182,6 +186,8 @@ void PolynomialTaxelCalibrationNoInterpolation::computeContactForceTorque(iCub::
 
     // Store the estimation result
     contact.setForceMoment(totalForce, totalTorque);
+    // set the forceTorqueEstimateConfidence should be 1 -> a min of confidence
+    contact.setForceTorqueEstimateConfidence(forceTorqueEstimateConfidence);
     return;
 }
 

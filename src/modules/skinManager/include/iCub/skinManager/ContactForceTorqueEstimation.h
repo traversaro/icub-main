@@ -30,6 +30,8 @@ namespace skinManager{
 */
 class IContactForceTorqueEstimator: public yarp::dev::DeviceDriver
 {
+protected:
+    unsigned int forceTorqueEstimateConfidence;
 public:
     /**
      * Destructor
