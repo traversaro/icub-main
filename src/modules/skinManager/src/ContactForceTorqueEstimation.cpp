@@ -179,13 +179,13 @@ void PolynomialTaxelCalibrationNoInterpolation::computeContactForceTorque(iCub::
 
         // Compute the torque (that is expressed with respect to the "center" of the contact)
         // TODO(traversaro, fjandrad): check the sign of the first term
-        taxelTorque = cross(taxelOrigins[taxelId] - contact.getCoP(), totalForce);
+        taxelTorque = cross(taxelOrigins[taxelId] - contact.getCoP(), taxelForce);
         totalTorque += taxelTorque;
     }
     // yError()<<"Taxel Force"<<totalForce.toString()<<" Force magnitude "<<force;
 
     // Store the estimation result
-    contact.setForceMoment(totalForce, totalTorque);
+    contact.setForceMoment(-totalForce, -totalTorque);
     // set the forceTorqueEstimateConfidence should be 1 -> a min of confidence
     contact.setForceTorqueEstimateConfidence(forceTorqueEstimateConfidence);
     return;
