@@ -185,7 +185,7 @@ void PolynomialTaxelCalibrationNoInterpolation::computeContactForceTorque(iCub::
     // yError()<<"Taxel Force"<<totalForce.toString()<<" Force magnitude "<<force;
 
     // Store the estimation result
-    contact.setForceMoment(-totalForce, -totalTorque);
+    contact.setForceMoment(-1*totalForce, -1*totalTorque);
     // set the forceTorqueEstimateConfidence should be 1 -> a min of confidence
     contact.setForceTorqueEstimateConfidence(forceTorqueEstimateConfidence);
     return;
