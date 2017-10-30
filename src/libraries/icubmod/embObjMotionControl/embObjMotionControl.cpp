@@ -2262,6 +2262,11 @@ bool embObjMotionControl::setCalibrationParametersRaw(int j, const CalibrationPa
         //calib.params.type11.calibrationZero = 32767;//(int32_t)S_32(params.paramZero * _angleToEncoder[j]);
         break;
 
+    case eomc_calibration_type12_absolute_sensor:
+        calib.params.type12.rawValueAtZeroPos  = (int32_t)S_32(params.param1);
+        calib.params.type12.calibrationDelta = (int32_t)S_32(params.paramZero * _angleToEncoder[j]);
+        break;
+
     default:
         yError() << "Calibration type unknown!! (embObjMotionControl)\n";
         return false;
@@ -3805,7 +3810,17 @@ bool embObjMotionControl::getRemoteVariableRaw(yarp::os::ConstString key, yarp::
     val.clear();
     if (key == "kinematic_mj")
     {
-        Bottle& r = val.addList(); for (size_t i = 0; i<_couplingInfo.matrixJ2M.size(); i++) { r.addDouble(_couplingInfo.matrixJ2M[i]); }
+        // Return the reduced kinematic_mj matrix considering only the joints actually exposed to the user
+        Bottle& ret = val.addList();
+        for (int r=0; r<_njoints; r++)
+        {
+            for (int c = 0; c < _njoints; c++)
+            {
+                // matrixJ2M is stored as row major in the  eomc_couplingInfo_t,
+                // and kinematic_mj is returned as a row major serialization as well
+                ret.addDouble(_couplingInfo.matrixJ2M[4 * r + c]);
+            }
+        }
         return true;
     }
     else if (key == "encoders")
@@ -3990,7 +4005,8 @@ bool embObjMotionControl::setRemoteVariableRaw(yarp::os::ConstString key, const 
 
     if (key == "kinematic_mj")
     {
-        return true;
+        yWarning("setRemoteVariable(): Impossible to set kinematic_mj parameter at runtime.");
+        return false;
     }
     else if (key == "rotor")
     {

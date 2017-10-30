@@ -21,6 +21,7 @@
 #include <qstring.h>
 #include <qthread.h>
 #include <vector>
+#include <yarp/os/Log.h>
 #include <yarp/sig/Vector.h>
 #include <iCub/skinDynLib/skinContactList.h>
 
@@ -509,18 +510,19 @@ void ObjectsManager::manage(iCub::skinDynLib::skinContactList &forces)
 
         int p=forces[i].getBodyPart();
         int l=forces[i].getLinkNumber();
-        
+
         if (p >= 0 && p < 8 && l >= 0 && l < 8)
         {
             if (mAB[p][l])
             {
                 mAB[p][l]->addArrow(new ForceArrow(P[0],P[1],P[2],f,F[0],F[1],F[2],M[0],M[1],M[2]));
             }
-        } 
-        else 
-        {
-            std::cerr << "iCubGui: unexpected body part " << p << " or link index " << l << " contained in received skinContactList." << std::endl;
         }
+        else
+        {
+            yError("iCubGui: unexpected body part %d or link index %d contained in received skinContactList.", p, l);
+        }
+
     }
 }
 
