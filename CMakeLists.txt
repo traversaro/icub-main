@@ -25,7 +25,7 @@ project(iCub)
 #### Find YARP, require that YARP version is at least ICUB_REQYARP_VERSION
 set(ICUB_REQYARP_VERSION_MAJOR "2")
 set(ICUB_REQYARP_VERSION_MINOR "3")
-set(ICUB_REQYARP_VERSION_PATCH "70")
+set(ICUB_REQYARP_VERSION_PATCH "72")
 set(ICUB_REQYARP_VERSION_TWEAK "")
 
 if(ICUB_REQYARP_VERSION_TWEAK)
@@ -76,16 +76,6 @@ include(${PROJECT_SOURCE_DIR}/conf/iCubOptions.cmake)
 # find dependencies and set variables
 include(${PROJECT_SOURCE_DIR}/conf/iCubFindDependencies.cmake)
 
-# check for libraries that are strictly required
-if (NOT ICUB_HAS_GSL)
-  message(FATAL_ERROR "Cannot find GSL")
-else (NOT ICUB_HAS_GSL)
-  if (NOT ICUB_USE_GSL)
-    message(STATUS "GSL is strictly required: GSL enabled")
-    set(ICUB_USE_GSL TRUE CACHE BOOL "Use package GSL" FORCE)
-  endif (NOT ICUB_USE_GSL)
-endif (NOT ICUB_HAS_GSL)
-
 ### enable testing
 option(BUILD_TESTING "Compile tests" OFF)
 if(BUILD_TESTING)
@@ -94,7 +84,7 @@ endif()
 
 option(ICUB_DASHBOARD_SUBMIT "Submit compile tests to cdash" FALSE)
 
-if (ICUB_DASHBOARD_SUBMIT)
+if(ICUB_DASHBOARD_SUBMIT)
     include (CTest)
 endif()
 

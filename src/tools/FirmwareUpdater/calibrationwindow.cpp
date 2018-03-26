@@ -9,12 +9,14 @@
 
 #define CHANNEL_COUNT   6
 #define HEX_VALC 0x8000
+#define RANGE32K 32768
 
 #define     COL_CURRMEASURE     0
 
-#define     COL_OFFSET          0
-#define     COL_CALIBBIAS       1
-#define     COL_CURRBIAS        2
+#define     COL_GAIN            0
+#define     COL_OFFSET          1
+#define     COL_CALIBBIAS       2
+#define     COL_CURRBIAS        3
 
 #define     COL_FULLSCALE       0
 
@@ -25,8 +27,34 @@
 
 #define     MATRIX_COUNT        3
 
+int convert_to_signed32k(unsigned int v)
+{
+    return static_cast<int>(v)-32768; // it is the 0x8000 used in q15 transformation
+}
 
-CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidgetItem *item, QWidget *parent) :
+int showasQ15(int v)
+{
+    return static_cast<std::int16_t>(v&0xffff);
+}
+
+// bias, tare, offset. in here we mean what we add to the six values before or after matyrix multiplication.
+int showBias(unsigned int v)
+{
+    // marco.accame:
+    // the gui has always shown the value at it is.
+    // it should however show the value w/ showasQ15()
+    return v;
+}
+
+
+
+unsigned int q15_from(int v)
+{
+    return v+0x8000;
+}
+
+
+CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, icubCanProto_boardType_t b, CustomTreeWidgetItem *item, QWidget *parent) :
     QMainWindow(parent),mutex(QMutex::Recursive),
     ui(new Ui::CalibrationWindow)
 {
@@ -40,7 +68,7 @@ CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidget
     id  = ((CustomTreeWidgetItem*)item->getParentNode())->getCanBoard(selected).pid;
     currentMatrixIndex = 0;
 
-    calibration_value=32767;
+    calibration_value = 32767;
     calib_const[0] = 0;
     calib_const[1] = 0;
     calib_const[2] = 0;
@@ -49,6 +77,7 @@ CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidget
     matrix_changed[1] = false;
     matrix_changed[2] = false;
 
+    boardtype = b; // we can have either a icubCanProto_boardType__strain or a icubCanProto_boardType__strain2 ...
     eeprom_saved_status=true;
     first_time = true;
     for(int i=0;i<CHANNEL_COUNT;i++){
@@ -56,8 +85,9 @@ CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidget
         adc[i]              = 0;
         calib_bias[i]       = 0;
         curr_bias[i]        = 0;
-        maxadc[i]           = 0;
-        minadc[i]           = 65535;
+        // marco.accame: we want to show the maximum / minimum values in the same way the adc values are displayed: in range [-32k, +32k)
+        maxadc[i]           = -32768;
+        minadc[i]           = +32767;
 
         sliderPressed[i]    = false;
         amp_gain1[i]        = 0;
@@ -78,7 +108,14 @@ CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidget
         QWidget *container = new QWidget(ui->tableParamters);
         QSlider *slider = new QSlider(container);
         slider->setMinimum(0);
-        slider->setMaximum(0x3FF);
+        if(icubCanProto_boardType__strain2 == boardtype)
+        {
+            slider->setMaximum(0xFFFF);
+        }
+        else
+        {
+            slider->setMaximum(0x3FF);
+        }
         slider_gain.append(slider);
         slider->setOrientation(Qt::Horizontal);
 
@@ -100,6 +137,11 @@ CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidget
         QTableWidgetItem *item = new QTableWidgetItem("-");
         item->setFlags(item->flags() ^ Qt::ItemIsEditable);
         ui->tableCurr->setItem(i,COL_CURRMEASURE,item);
+
+        //QTableWidgetItem *header2 = new QTableWidgetItem();
+        //header2->setText("CIAO");
+        //tableWidget->setHorizontalHeaderItem(1,header2);
+        ui->tableCurr->setHorizontalHeaderItem(0, new QTableWidgetItem("ADC"));
 
 
         QTableWidgetItem *item1 = new QTableWidgetItem("-");
@@ -131,6 +173,12 @@ CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidget
             QTableWidgetItem *item2 = new QTableWidgetItem("-");
             ui->matrixC->setItem(i,j,item2);
         }
+
+
+        QTableWidgetItem *item001 = new QTableWidgetItem("-");
+        item001->setFlags(item001->flags() ^ Qt::ItemIsEditable);
+        ui->tableParamters->setItem(i,COL_GAIN,item001);
+
 
         QTableWidgetItem *item5 = new QTableWidgetItem("-");
         item5->setFlags(item5->flags() ^ Qt::ItemIsEditable);
@@ -164,10 +212,14 @@ CalibrationWindow::CalibrationWindow(FirmwareUpdaterCore *core, CustomTreeWidget
 
 
 
-
-    ui->slider_zero->setMinimum(0);
-    ui->slider_zero->setMaximum(65535);
-    ui->slider_zero->setValue(32767);
+// marco.accame: it was...
+//    ui->slider_zero->setMinimum(0);
+//    ui->slider_zero->setMaximum(65535);
+//    ui->slider_zero->setValue(32767);
+     //marco.accame: is ...
+    ui->slider_zero->setMinimum(-32768);
+    ui->slider_zero->setMaximum(32767);
+    ui->slider_zero->setValue(0);
     ui->zeroLbl->setText(QString("%1").arg(ui->slider_zero->value()));
 
     progress = new QProgressBar(this);
@@ -327,7 +379,9 @@ void CalibrationWindow::autoAdjust()
     mutex.lock();
     loading();
     string msg;
-    core->getDownloader()->strain_calibrate_offset(bus,id,ui->slider_zero->value(),&msg);
+    // marco.accame: transform [-32K, +32K) into [0, +64K) as required by strain_calibrate_offset()
+    unsigned int middlevalue = 32768 + ui->slider_zero->value();
+    core->getDownloader()->strain_calibrate_offset(bus,id, boardtype, middlevalue, &msg);
     loading(false);
     mutex.unlock();
 }
@@ -983,12 +1037,12 @@ void CalibrationWindow::onTimeout()
             qDebug() <<"debug: message 'strain_get_offset' lost.";
         }
 
-        int bool_raw = currentMatrixIndex != 0 ? 1 : 0;
+        int bUseCalibration = currentMatrixIndex != 0 ? 1 : 0;
         for (int i=0;i<CHANNEL_COUNT;i++){
             if(i==0){
-                ret  = core->getDownloader()->strain_get_adc (core->getDownloader()->board_list[selected].bus, core->getDownloader()->board_list[selected].pid, i, adc[i], bool_raw,&msg);
+                ret  = core->getDownloader()->strain_get_adc (core->getDownloader()->board_list[selected].bus, core->getDownloader()->board_list[selected].pid, i, adc[i], bUseCalibration,&msg);
             }else{
-                ret |= core->getDownloader()->strain_get_adc (core->getDownloader()->board_list[selected].bus, core->getDownloader()->board_list[selected].pid, i, adc[i], bool_raw,&msg);
+                ret |= core->getDownloader()->strain_get_adc (core->getDownloader()->board_list[selected].bus, core->getDownloader()->board_list[selected].pid, i, adc[i], bUseCalibration,&msg);
             }
             appendLogMsg(msg.c_str());
         }
@@ -999,6 +1053,7 @@ void CalibrationWindow::onTimeout()
 
         int ri,ci=0;
         char tempbuf [250];
+
 
 
         if (eeprom_saved_status==false) {
@@ -1051,22 +1106,22 @@ void CalibrationWindow::onTimeout()
 
 
         for (int i=0;i<CHANNEL_COUNT;i++){
-            if (!bool_raw){
-                if(adc[i]>maxadc[i]){
-                    maxadc[i]=adc[i];
+            if (!bUseCalibration){
+                if(convert_to_signed32k(adc[i])>maxadc[i]){
+                    maxadc[i]=convert_to_signed32k(adc[i]);
                 }
-                if (adc[i]<minadc[i]){
-                    minadc[i]=adc[i];
+                if (convert_to_signed32k(adc[i])<minadc[i]){
+                    minadc[i]=convert_to_signed32k(adc[i]);
                 }
             } else {
-                maxadc[i]=0;
-                minadc[i]=65535;
+                maxadc[i]=-32768;
+                minadc[i]=+32767;
             }
         }
 
         bool skip_display_calib=false;
 
-        if(bool_raw){
+        if(bUseCalibration){
             int currentMatrix;
             core->getDownloader()->strain_get_matrix(bus,id,currentMatrix,&msg);
             ui->comboUseMatrix->blockSignals(true);
@@ -1079,17 +1134,45 @@ void CalibrationWindow::onTimeout()
             ui->comboUseMatrix->blockSignals(false);
         }
 
+        if(bUseCalibration)
+        {
+            ui->tableCurr->horizontalHeaderItem(0)->setText("FT");
+        }
+        else
+        {
+            ui->tableCurr->horizontalHeaderItem(0)->setText("ADC");
+        }
+
         for (int i=0;i<CHANNEL_COUNT;i++){
+
+            if(icubCanProto_boardType__strain2 == boardtype)
+            {
+                core->getDownloader()->strain_get_amplifier_gain_offset(core->getDownloader()->board_list[selected].bus, core->getDownloader()->board_list[selected].pid, i, amp_gains[i], amp_offsets[i], &msg);
+                appendLogMsg(msg.c_str());
+                sprintf(tempbuf,"%6.3f",amp_gains[i]);
+                QTableWidgetItem *item00 = ui->tableParamters->item(i,COL_GAIN);
+                setText(item00,tempbuf);
+            }
+            else
+            {
+                amp_gains[i] = 1.0f;
+                amp_offsets[i] = 0;
+                sprintf(tempbuf,"%s", "N/A");
+                QTableWidgetItem *item00 = ui->tableParamters->item(i,COL_GAIN);
+                setText(item00, tempbuf);
+            }
+
+
             core->getDownloader()->strain_get_calib_bias(core->getDownloader()->board_list[selected].bus, core->getDownloader()->board_list[selected].pid, i, calib_bias[i],&msg);
             appendLogMsg(msg.c_str());
-            sprintf(tempbuf,"%d",calib_bias[i]);
+            sprintf(tempbuf,"%d (%d)",showasQ15(calib_bias[i]), showBias(calib_bias[i]));
             QTableWidgetItem *item = ui->tableParamters->item(i,COL_CALIBBIAS);
             //item->setText(tempbuf);
             setText(item,tempbuf);
 
             core->getDownloader()->strain_get_curr_bias(core->getDownloader()->board_list[selected].bus, core->getDownloader()->board_list[selected].pid, i, curr_bias[i],&msg);
             appendLogMsg(msg.c_str());
-            sprintf(tempbuf,"%d",curr_bias[i]);
+            sprintf(tempbuf,"%d", showasQ15(curr_bias[i]));
             QTableWidgetItem *item1 = ui->tableParamters->item(i,COL_CURRBIAS);
             //item1->setText(tempbuf);
             setText(item1,tempbuf);
@@ -1103,12 +1186,15 @@ void CalibrationWindow::onTimeout()
             //slider->setValue(offset[i]);
             setSliderValue(slider,offset[i]);
 
-            sprintf(tempbuf,"%d",adc[i]-HEX_VALC);
+            // marco.accame: we always show the received value in range [-32k, +32k).
+            // in case of 0 == bUseCalibration: it is the adc value
+            // in case of 1 == bUseCalibration: it is = M * (adc+calibtare) + currtare
+            sprintf(tempbuf,"%d",convert_to_signed32k(adc[i]));
             QTableWidgetItem *item3 = ui->tableCurr->item(i,COL_CURRMEASURE);
             //item3->setText(tempbuf);
             setText(item3,tempbuf);
 
-            if(bool_raw){
+            if(bUseCalibration){
                 QTableWidgetItem *item = ui->tableUseMatrix->item(i,COL_MAXMEASURE);
                 setText(item,"---");
 
@@ -1127,9 +1213,9 @@ void CalibrationWindow::onTimeout()
 
                 if (skip_display_calib==false){
                     if(i<=2){
-                        sprintf(tempbuf,"%+.3f N",(int(adc[i])-HEX_VALC)/float(HEX_VALC)*full_scale_const[currentMatrixIndex - 1][i]);
+                        sprintf(tempbuf,"%+.3f N",(convert_to_signed32k(adc[i]))/float(RANGE32K)*full_scale_const[currentMatrixIndex - 1][i]);
                     }else{
-                        sprintf(tempbuf,"%+.3f Nm",(int(adc[i])-HEX_VALC)/float(HEX_VALC)*full_scale_const[currentMatrixIndex - 1][i]);
+                        sprintf(tempbuf,"%+.3f Nm",(convert_to_signed32k(adc[i]))/float(RANGE32K)*full_scale_const[currentMatrixIndex - 1][i]);
                     }
                     QTableWidgetItem *item3 = ui->tableUseMatrix->item(i,COL_NEWTONMEASURE);
                     setText(item3,tempbuf);

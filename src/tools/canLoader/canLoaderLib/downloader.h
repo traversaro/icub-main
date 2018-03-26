@@ -154,6 +154,8 @@ private:
     // the id of the can bus is moved inside the struct sBoard because we want to manage boards from different CAN buses.
     int canbus_id;
 
+    bool strain_is_acquiring_in_calibratedmode;
+
 private:
 int download_motorola_line(char* line, int len, int bus, int board_pid);
 int download_hexintel_line(char* line, int len, int bus, int board_pid, bool eeprom, int board_type);
@@ -164,6 +166,14 @@ int get_dst_from_id (int id);
 
 int verify_ack(int command, int read_messages);
 
+enum strain_ampl_cfg_t
+{
+    ampcfg_gain48 = 0, ampcfg_gain36 = 1, ampcfg_gain24 = 2, ampcfg_gain20 = 3, ampcfg_gain16 = 4,
+    ampcfg_gain10 = 5, ampcfg_gain08 = 6, ampcfg_gain06 = 7, ampcfg_gain04 = 8
+};
+
+
+enum { ampcfg_gain_numberOf = 9 };
 
 
 public:
@@ -194,7 +204,7 @@ void set_canbus_id      (int id);
 
 int strain_start_sampling    (int bus, int target_id, string *errorstring = NULL);
 int strain_stop_sampling     (int bus, int target_id, string *errorstring = NULL);
-int strain_calibrate_offset  (int bus, int target_id, unsigned int middle_val, string *errorstring = NULL);
+int strain_calibrate_offset  (int bus, int target_id, icubCanProto_boardType_t boardtype, unsigned int middle_val, string *errorstring = NULL);
 int strain_get_offset		 (int bus, int target_id, char channel, unsigned int& offset, string *errorstring = NULL);
 int strain_set_offset		 (int bus, int target_id, char channel, unsigned int  offset, string *errorstring = NULL);
 int strain_get_adc			 (int bus, int target_id, char channel, unsigned int& adc, int type, string *errorstring = NULL);
@@ -203,6 +213,10 @@ int strain_get_matrix_rc	 (int bus, int target_id, char r, char c, unsigned int&
 int strain_set_matrix_rc	 (int bus, int target_id, char r, char c, unsigned int  elem, int matrix = 0, string *errorstring = NULL);
 int strain_get_matrix_gain	 (int bus, int target_id, unsigned int& gain, int matrix = 0, string *errorstring = NULL);
 int strain_set_matrix_gain	 (int bus, int target_id, unsigned int  gain, int matrix = 0, string *errorstring = NULL);
+float strain_amplifier_cfg2gain(strain_ampl_cfg_t c);
+int strain_set_amplifier_cfg(int bus, int target_id, unsigned char channel, strain_ampl_cfg_t ampset, string *errorstring);
+int strain_get_amplifier_gain_offset(int bus, int target_id, unsigned char channel, float &gain, uint16_t &offset, string *errorstring);
+int strain_set_amplifier_gain_offset(int bus, int target_id, unsigned char channel, float gain, uint16_t offset, string *errorstring);
 int strain_get_calib_bias	 (int bus, int target_id, char channel, signed int& bias, string *errorstring = NULL);
 int strain_set_calib_bias	 (int bus, int target_id, string *errorstring = NULL);
 int strain_set_calib_bias	 (int bus, int target_id, char channel, signed int bias, string *errorstring = NULL);
@@ -219,9 +233,32 @@ int strain_get_eeprom_saved  (int bus, int target_id, bool* status, string *erro
 int strain_set_matrix        (int bus, int target_id, int matrix = 0, string *errorstring = NULL);
 int strain_get_matrix        (int bus, int target_id, int &matrix, string *errorstring = NULL);
 
-int sg6_get_amp_gain      (int bus, int target_id, char channel, unsigned int& gain1, unsigned int& gain2 );
-int sg6_set_amp_gain      (int bus, int target_id, char channel, unsigned int  gain1, unsigned int  gain2 );
+int sg6_obsolete_get_amp_gain      (int bus, int target_id, char channel, unsigned int& gain1, unsigned int& gain2 );
+int sg6_obsolete_set_amp_gain      (int bus, int target_id, char channel, unsigned int  gain1, unsigned int  gain2 );
 
+
+// for use by the future strain calibration data acquisition gui
+
+struct strain_value_t
+{
+    bool valid;                                             // the acquisition is meaninful
+    bool calibrated;                                        // the values are calibrated
+    bool saturated;                                         // at least one measure is saturated. see saturationinfo[6] to know more
+    unsigned int channel[6];                                // the values
+    icubCanProto_strain_saturationInfo_t saturationinfo[6]; // the saturation info
+    strain_value_t() : calibrated(false), valid(false), saturated(false) {
+        channel[0] = channel[1] = channel[2] = channel[3] = channel[4] = channel[5] = 0;
+        saturationinfo[0] = saturationinfo[1] = saturationinfo[2] = saturationinfo[3] = saturationinfo[4] = saturationinfo[5] = saturationNONE;
+    }
+    void extract(signed short *ss6) const {
+        if(NULL == ss6) return;
+        for(size_t i=0; i<6; i++) { ss6[i] = static_cast<unsigned short>(channel[i]) - 0x7fff; }
+    }
+};
+
+int strain_acquire_start(int bus, int target_id, uint8_t txratemilli = 20, bool calibmode = true, string *errorstring = NULL);
+int strain_acquire_get(int bus, int target_id, vector<strain_value_t> &values, const unsigned int howmany = 10, string *errorstring = NULL);
+int strain_acquire_stop(int bus, int target_id, string *errorstring = NULL);
 
 cDownloader(bool verbose = true);
 
