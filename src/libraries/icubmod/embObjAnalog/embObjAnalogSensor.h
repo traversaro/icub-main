@@ -1,13 +1,5 @@
 // -*- mode:C++; tab-width:4; c-basic-offset:4; indent-tabs-mode:nil -*-
 
-/**
- * @ingroup icub_hardware_modules 
- * \defgroup analogSensorEth
- *
- * To Do: add description
- *
- */
-
 #ifndef __analogSensorEth_h__
 #define __analogSensorEth_h__
 
@@ -170,7 +162,7 @@ private:
     bool fillDatOfInertial(void *inertialdata);
     bool configServiceInertials(Searchable& globalConfig);
     bool sendConfig2SkinInertial(yarp::os::Searchable &config);
-    //eOas_inertial1_position_t getLocationOfInertialSensor(yarp::os::ConstString &strpos);
+    //eOas_inertial1_position_t getLocationOfInertialSensor(std::string &strpos);
 
 
     // for ??

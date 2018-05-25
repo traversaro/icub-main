@@ -23,9 +23,8 @@
 #endif
 /// general purpose stuff.
 #include <yarp/os/Time.h>
-#include <yarp/os/ConstString.h>
 
-#include <math.h>
+#include <cmath>
 #include <string>
 
 ///specific to this device driver.
@@ -133,7 +132,7 @@ bool iCubSimulationControl::open(yarp::os::Searchable& config) {
     controlP = allocAndCheck<double>(njoints); 
 
     axisMap = allocAndCheck<int>(njoints);
-//  jointNames = new ConstString[njoints];
+//  jointNames = new string[njoints];
 
     current_jnt_pos = allocAndCheck<double>(njoints);
     current_jnt_vel = allocAndCheck<double>(njoints);
@@ -302,7 +301,7 @@ bool iCubSimulationControl::open(yarp::os::Searchable& config) {
 
     ImplementPositionControl2::initialize(njoints, axisMap, angleToEncoder, zeros);
     ImplementVelocityControl2::initialize(njoints, axisMap, angleToEncoder, zeros);
-    ImplementPidControl::initialize(njoints, axisMap, angleToEncoder, zeros,newtonsToSensor,ampsToSensor);
+    ImplementPidControl::initialize(njoints, axisMap, angleToEncoder, zeros,newtonsToSensor,ampsToSensor, dutycycleToPwm);
     ImplementEncodersTimed::initialize(njoints, axisMap, angleToEncoder, zeros);
     ImplementMotorEncoders::initialize(njoints, axisMap, angleToEncoder, zeros);
     ImplementControlCalibration<iCubSimulationControl, IControlCalibration>::
@@ -310,7 +309,7 @@ bool iCubSimulationControl::open(yarp::os::Searchable& config) {
     ImplementAmplifierControl<iCubSimulationControl, IAmplifierControl>::
         initialize(njoints, axisMap, angleToEncoder, zeros);
     ImplementControlLimits2::initialize(njoints, axisMap, angleToEncoder, zeros);
-    ImplementTorqueControl::initialize(njoints, axisMap, angleToEncoder, zeros, newtonsToSensor);
+    ImplementTorqueControl::initialize(njoints, axisMap, angleToEncoder, zeros, newtonsToSensor, ampsToSensor, dutycycleToPwm,nullptr,nullptr);
     ImplementControlMode2::initialize(njoints, axisMap);
     ImplementInteractionMode::initialize(njoints, axisMap);
     ImplementPositionDirect::initialize(njoints, axisMap, angleToEncoder, zeros);
@@ -1508,12 +1507,10 @@ bool iCubSimulationControl::resetMotorEncodersRaw()
 
 bool iCubSimulationControl::getMotorEncodersRaw(double *v)
 {
-   _mutex.wait();
     for(int axis = 0;axis<njoints;axis++)
     {
         getMotorEncoderRaw(axis,&v[axis]);
     }
-    _mutex.post();
     return true;
 }
 
@@ -1567,12 +1564,10 @@ bool iCubSimulationControl::getMotorEncoderTimedRaw(int axis, double *enc, doubl
 
 bool iCubSimulationControl::getMotorEncoderSpeedsRaw(double *v)
 {
-   _mutex.wait();
     for(int axis = 0; axis<njoints; axis++)
     {
         getMotorEncoderSpeedRaw(axis,&v[axis]);
     }
-    _mutex.post();
     return true;
 }
 
@@ -1674,6 +1669,11 @@ bool iCubSimulationControl::calibrateRaw(int axis, double p)
     return NOT_YET_IMPLEMENTED("calibrateRaw");
 }
 
+bool iCubSimulationControl::calibrateRaw(int axis, unsigned int type, double p1, double p2, double p3)
+{
+    return NOT_YET_IMPLEMENTED("calibrateRaw");
+}
+
 bool iCubSimulationControl::doneRaw(int axis)
 {
     return NOT_YET_IMPLEMENTED("doneRaw");
@@ -1731,7 +1731,7 @@ bool iCubSimulationControl::getLimitsRaw(int axis, double *min, double *max)
 }
 
 // IRemoteVariables
-bool iCubSimulationControl::getRemoteVariableRaw(yarp::os::ConstString key, yarp::os::Bottle& val)
+bool iCubSimulationControl::getRemoteVariableRaw(string key, yarp::os::Bottle& val)
 {
     val.clear();
     if (key == "kinematic_mj")
@@ -1786,7 +1786,7 @@ bool iCubSimulationControl::getRemoteVariableRaw(yarp::os::ConstString key, yarp
     return false;
 }
 
-bool iCubSimulationControl::setRemoteVariableRaw(yarp::os::ConstString key, const yarp::os::Bottle& val)
+bool iCubSimulationControl::setRemoteVariableRaw(string key, const yarp::os::Bottle& val)
 {
     string s1 = val.toString();
     Bottle* bval = val.get(0).asList();
@@ -1836,7 +1836,6 @@ bool iCubSimulationControl::getRemoteVariablesListRaw(yarp::os::Bottle* listOfKe
     return true;
 }
 
-// IControlLimits2
 bool iCubSimulationControl::setVelLimitsRaw(int axis, double min, double max)
 {
     if ((axis >= 0) && (axis < njoints)){
@@ -1904,7 +1903,7 @@ bool iCubSimulationControl::stopRaw(const int n_joint, const int *joints)
     return ret;
 }
 
-bool iCubSimulationControl::getAxisNameRaw(int axis, yarp::os::ConstString& name)
+bool iCubSimulationControl::getAxisNameRaw(int axis, string& name)
 {
     if ((axis >= 0) && (axis < njoints))
     {

@@ -28,6 +28,8 @@
 #ifndef __iCubSimulationControlh__
 #define __iCubSimulationControlh__
 
+#include <string>
+
 #include <yarp/os/Bottle.h>
 #include <yarp/os/Semaphore.h>
 //#include <yarp/os/RateThread.h>
@@ -37,6 +39,11 @@
 #include <yarp/dev/PolyDriver.h>
 #include <yarp/dev/ControlBoardInterfaces.h>
 #include <yarp/dev/ControlBoardInterfacesImpl.h>
+
+#ifndef YARP_NO_DEPRECATED //since 3.0.0
+#include <yarp/dev/IControlLimits2.h>
+#include <yarp/dev/IControlLimits2Impl.h>
+#endif
 
 #include "LogicalJoints.h"
 
@@ -230,8 +237,8 @@ class yarp::dev::iCubSimulationControl :
 
   //////////////////////// BEGIN RemoteVariables Interface
   //
-  virtual bool getRemoteVariableRaw(yarp::os::ConstString key, yarp::os::Bottle& val);
-  virtual bool setRemoteVariableRaw(yarp::os::ConstString key, const yarp::os::Bottle& val);
+  virtual bool getRemoteVariableRaw(std::string key, yarp::os::Bottle& val);
+  virtual bool setRemoteVariableRaw(std::string key, const yarp::os::Bottle& val);
   virtual bool getRemoteVariablesListRaw(yarp::os::Bottle* listOfKeys);
 
   ///////////////////////// END RemoteVariables Interface
@@ -274,6 +281,7 @@ class yarp::dev::iCubSimulationControl :
 
   ////// calibration
   virtual bool calibrateRaw(int j, double p);
+  virtual bool calibrateRaw(int axis, unsigned int type, double p1, double p2, double p3);
   virtual bool doneRaw(int j);
 
   /////// Limits
@@ -283,7 +291,7 @@ class yarp::dev::iCubSimulationControl :
   virtual bool getVelLimitsRaw(int axis, double *min, double *max);
 
   /////// Axis Info
-  virtual bool getAxisNameRaw(int axis, yarp::os::ConstString& name);
+  virtual bool getAxisNameRaw(int axis, std::string& name);
   virtual bool getJointTypeRaw(int axis, yarp::dev::JointTypeEnum& type);
 
   /// IMotor

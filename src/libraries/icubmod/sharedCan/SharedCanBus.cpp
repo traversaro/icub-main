@@ -7,6 +7,7 @@
  *
  */
 
+#include <string>
 #include <vector>
 
 #include <yarp/os/Time.h>
@@ -19,6 +20,7 @@
 
 const int CAN_DRIVER_BUFFER_SIZE = 500;
 const int DEFAULT_THREAD_PERIOD = 10;
+
 class SharedCanBus : public yarp::os::RateThread
 {
 public:
@@ -232,7 +234,7 @@ public:
             return false;
         }
 
-        yarp::os::ConstString device=config.find("physDevice").asString();
+        std::string device=config.find("physDevice").asString();
 
         yarp::os::Property prop;
         prop.fromString(config.toString().c_str());
@@ -320,7 +322,7 @@ private:
     yarp::os::Semaphore writeMutex;
     yarp::os::Semaphore configMutex;
 
-    yarp::os::ConstString mDevice;
+    std::string mDevice;
     int mCanDeviceNum;
 
     yarp::dev::PolyDriver polyDriver;

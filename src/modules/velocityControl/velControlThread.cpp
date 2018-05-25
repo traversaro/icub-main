@@ -134,7 +134,7 @@ void velControlThread::run()
                 if (fabs(targets(i)-encoders(i))>6.0)
                     ipos->positionMove(i,targets(i));
                 else
-                    ipid->setReference(i,targets(i));
+                    ipid->setPidReference(yarp::dev::VOCAB_PIDTYPE_POSITION,i,targets(i));
             }
         }
         else
@@ -176,8 +176,8 @@ void velControlThread::threadRelease()
     for(int k=0;k<nJoints;k++)
     {
         ivel->stop();
-        for(int k = 0; k < nJoints; k++)
-            imod->setPositionMode(k);
+        for (int k = 0; k < nJoints; k++)
+            imod->setControlMode(k, VOCAB_CM_POSITION);
         suspended = true;
     }
 
@@ -190,7 +190,7 @@ void velControlThread::threadRelease()
 #endif
 }
 
-bool velControlThread::init(PolyDriver *d, ConstString partName, ConstString robotName)
+bool velControlThread::init(PolyDriver *d, std::string partName, std::string robotName)
 {
     char tmp[255];
 
@@ -286,7 +286,7 @@ void velControlThread::go()
         imod->getControlMode(k, &mode);
         if (mode!=VOCAB_CM_MIXED && mode!=VOCAB_CM_VELOCITY)
         {
-            yarp::os::ConstString s = yarp::os::Vocab::decode(mode);
+            std::string s = yarp::os::Vocab::decode(mode);
             yWarning("Joint (%d) is in mode (%s) and does not accepts velocty commands. You have first to set either VOCAB_CM_VELOCITY or VOCAB_CM_MIXED control mode\n", k, s.c_str());
         }
     }

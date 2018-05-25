@@ -20,8 +20,9 @@
 
 #include "WorldManager.h"
 
-#include <stdio.h>
+#include <cstdio>
 #include <cstring>
+#include <string>
 
 #include <yarp/os/Value.h>
 
@@ -240,7 +241,7 @@ void consumeKind(ManagerState& state) {
 }
 
 void consumeHand(ManagerState& state) {
-    yarp::os::ConstString grabber = state.get(state.offset).asString();
+    std::string grabber = state.get(state.offset).asString();
     state.offset++;
     if (grabber=="left") {
         state.op.rightHanded = WorldOpFlag(false);

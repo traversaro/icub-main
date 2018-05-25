@@ -2392,7 +2392,6 @@ ImplementVelocityControl2(this),
 ImplementPidControl(this),
 ImplementEncodersTimed(this),
 ImplementControlCalibration<CanBusMotionControl, IControlCalibration>(this),
-ImplementControlCalibration2<CanBusMotionControl, IControlCalibration2>(this),
 ImplementAmplifierControl<CanBusMotionControl, IAmplifierControl>(this),
 ImplementControlLimits2(this),
 ImplementTorqueControl(this),
@@ -2471,7 +2470,7 @@ bool CanBusMotionControl::open (Searchable &config)
     prop.unput("device");
     prop.unput("subdevice");
     prop.put("device", canDevName.c_str());
-    yarp::os::ConstString canPhysDevName = config.find("physDevice").asString(); //for backward compatibility
+    std::string canPhysDevName = config.find("physDevice").asString(); //for backward compatibility
     if (canPhysDevName=="") canPhysDevName = config.findGroup("CAN").find("physDevice").asString();
     prop.put("physDevice",canPhysDevName.c_str());
     prop.put("canDeviceNum", p._networkN);
@@ -2513,7 +2512,7 @@ bool CanBusMotionControl::open (Searchable &config)
 //    ImplementVelocityControl<CanBusMotionControl, IVelocityControl>::
 //        initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros);
 
-    ImplementPidControl::initialize(p._njoints, p._axisMap, p._angleToEncoder, NULL, p._newtonsToSensor, p._ampsToSensor);
+    ImplementPidControl::initialize(p._njoints, p._axisMap, p._angleToEncoder, NULL, p._newtonsToSensor, p._ampsToSensor, p._dutycycleToPwm);
 
     ImplementEncodersTimed::initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros);
 
@@ -2524,16 +2523,13 @@ bool CanBusMotionControl::open (Searchable &config)
     ImplementControlCalibration<CanBusMotionControl, IControlCalibration>::
         initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros);
 
-    ImplementControlCalibration2<CanBusMotionControl, IControlCalibration2>::
-        initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros);
-
     ImplementAmplifierControl<CanBusMotionControl, IAmplifierControl>::
         initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros);
 
     ImplementControlLimits2::initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros);
 
     ImplementControlMode2::initialize(p._njoints, p._axisMap);
-    ImplementTorqueControl::initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros, p._newtonsToSensor);
+    ImplementTorqueControl::initialize(p._njoints, p._axisMap, p._angleToEncoder, p._zeros, p._newtonsToSensor, p._ampsToSensor, nullptr,nullptr,nullptr);
     _axisTorqueHelper = new axisTorqueHelper(p._njoints,p._torqueSensorId,p._torqueSensorChan, p._maxTorque, p._newtonsToSensor);
     
     if      (p._torqueControlUnits==CanBusMotionControlParameters::MACHINE_UNITS) {}
@@ -2585,9 +2581,9 @@ bool CanBusMotionControl::open (Searchable &config)
         
         for (int i=0; i<p._njoints; i++)
         {
-            yarp::os::Time::delay(0.002);
-            this->setBemfParam(i,p._bemfGain[i]);
-            //this->setMotorParam(i,p._bemfGain[i]); //ktau e bmef qui!
+            MotorTorqueParameters ps;
+            ps.bemf = p._bemfGain[i];
+            this->setMotorTorqueParams(i,ps);
 
             yarp::os::Time::delay(0.002);
             this->setFilterTypeRaw(i,p._filterType[i]);
@@ -2670,7 +2666,7 @@ bool CanBusMotionControl::open (Searchable &config)
         {
             for(int k=0;k<analogList.size();k++)
             {
-                std::string analogId=analogList.get(k).asString().c_str();;
+                std::string analogId=analogList.get(k).asString().c_str();
 
                 TBR_AnalogSensor *as=instantiateAnalog(config, analogId);
                 if (as!=0)
@@ -2794,7 +2790,7 @@ TBR_AnalogSensor *CanBusMotionControl::instantiateAnalog(yarp::os::Searchable& c
         if (analogConfig.check("PortName"))
         {
             isVirtualSensor = true;
-            ConstString virtualPortName = analogConfig.find("PortName").asString();
+            std::string virtualPortName = analogConfig.find("PortName").asString();
             bool   canEchoEnabled = analogConfig.find("CanEcho").asInt();
             analogSensor->backDoor = new TBR_CanBackDoor();
             analogSensor->backDoor->setUp(&res, &_mutex, canEchoEnabled, analogSensor);
@@ -3008,7 +3004,6 @@ bool CanBusMotionControl::close (void)
         ImplementEncodersTimed::uninitialize();
         ImplementMotorEncoders::uninitialize();
         ImplementControlCalibration<CanBusMotionControl, IControlCalibration>::uninitialize();
-        ImplementControlCalibration2<CanBusMotionControl, IControlCalibration2>::uninitialize();
         ImplementAmplifierControl<CanBusMotionControl, IAmplifierControl>::uninitialize();
         ImplementControlLimits2::uninitialize();
 
@@ -4150,7 +4145,7 @@ bool CanBusMotionControl::getRemoteVariablesListRaw(yarp::os::Bottle* listOfKeys
     return true;
 }
 
-bool CanBusMotionControl::getRemoteVariableRaw(yarp::os::ConstString key, yarp::os::Bottle& val)
+bool CanBusMotionControl::getRemoteVariableRaw(std::string key, yarp::os::Bottle& val)
 {
     val.clear();
     CanBusResources& res = RES(system_resources);
@@ -4168,7 +4163,7 @@ bool CanBusMotionControl::getRemoteVariableRaw(yarp::os::ConstString key, yarp::
     return false;
 }
 
-bool CanBusMotionControl::setRemoteVariableRaw(yarp::os::ConstString key, const yarp::os::Bottle& val)
+bool CanBusMotionControl::setRemoteVariableRaw(std::string key, const yarp::os::Bottle& val)
 {
     CanBusResources& r = RES(system_resources);
     size_t _njoints = r.getJoints();
@@ -4202,7 +4197,7 @@ bool CanBusMotionControl::setRemoteVariableRaw(yarp::os::ConstString key, const 
     return false;
 }
 
-bool CanBusMotionControl::getAxisNameRaw(int axis, yarp::os::ConstString& name)
+bool CanBusMotionControl::getAxisNameRaw(int axis, std::string& name)
 {
     CanBusResources& r = RES(system_resources);
     if (axis >= 0 && axis < r.getJoints())
@@ -4898,7 +4893,13 @@ bool CanBusMotionControl::setRefTorquesRaw (const double *ref_trqs)
 /// cmd is an array of double (LATER: to be optimized).
 bool CanBusMotionControl::getTorquesRaw (double *trqs)
 {
-    return NOT_YET_IMPLEMENTED("getTorquesRaw");
+    CanBusResources& r = RES(system_resources);
+    bool ret = true;
+    for (int j = 0; j < r.getJoints() && ret; j++)
+    {
+        ret &= getTorqueRaw(j, &trqs[j]);
+    }
+    return ret;
 }
 
 bool CanBusMotionControl::getTorqueRangeRaw (int j, double *min, double *max)
@@ -5631,7 +5632,7 @@ bool CanBusMotionControl::checkMotionDoneRaw (bool *val)
     return true;
 }
 
-bool CanBusMotionControl::calibrate2Raw(int axis, unsigned int type, double p1, double p2, double p3)
+bool CanBusMotionControl::calibrateRaw(int axis, unsigned int type, double p1, double p2, double p3)
 {
     bool b = _writeByteWords16(ICUBCANPROTO_POL_MC_CMD__CALIBRATE_ENCODER, axis, type, S_16(p1), S_16(p2), S_16(p3));
     return b;
@@ -5805,23 +5806,6 @@ bool CanBusMotionControl::getRefTorqueRaw (int axis, double *ref_trq)
     return true;
 }
 
-bool CanBusMotionControl::getBemfParamRaw (int axis, double *bemf)
-{
-    if (!(axis >= 0 && axis <= (CAN_MAX_CARDS-1)*2))
-        return false;
-
-    short value = 0;
-
-    if (_readWord16 (ICUBCANPROTO_POL_MC_CMD__GET_MOTOR_PARAMS, axis, value))
-    {
-        *bemf = double (value);
-    }
-    else
-        return false;
-
-    return true;
-}
-
 bool CanBusMotionControl::getMotorTorqueParamsRaw (int axis, MotorTorqueParameters *param)
 {
     CanBusResources& r = RES(system_resources);
@@ -5909,32 +5893,6 @@ bool CanBusMotionControl::setFilterTypeRaw (int j, int type)
         r.addMessage (ICUBCANPROTO_POL_MC_CMD__SET_TCFILTER_TYPE, axis);
         *((short *)(r._writeBuffer[0].getData()+1)) = S_16(type);
         r._writeBuffer[0].setLen(2);
-        r.writePacket();
-    _mutex.post();
-
-    return true;
-}
-
-bool CanBusMotionControl::setBemfParamRaw (int j, double bemf)
-{
-    const int axis = j;
-
-     /// prepare Can message.
-    CanBusResources& r = RES(system_resources);
-
-    if (!(axis >= 0 && axis <= (CAN_MAX_CARDS-1)*2))
-        return false;
-
-    _mutex.wait();
-        r.startPacket();
-        r.addMessage (ICUBCANPROTO_POL_MC_CMD__SET_MOTOR_PARAMS, axis);
-        *((short *)(r._writeBuffer[0].getData()+1)) = S_16(bemf);
-        *((unsigned char  *)(r._writeBuffer[0].getData()+3)) = (unsigned char) (0);
-        *((unsigned char  *)(r._writeBuffer[0].getData()+4)) = (unsigned char) (0);
-        *((unsigned char  *)(r._writeBuffer[0].getData()+5)) = (unsigned char) (0);
-        *((unsigned char  *)(r._writeBuffer[0].getData()+6)) = (unsigned char) (0);
-        *((unsigned char  *)(r._writeBuffer[0].getData()+7)) = (unsigned char) (0);
-        r._writeBuffer[0].setLen(8);
         r.writePacket();
     _mutex.post();
 
@@ -6747,7 +6705,7 @@ bool CanBusMotionControl::helper_getVelPidRaw(int j, Pid *pid)
 
 ///////////// END Velocity Control 2 INTERFACE  //////////////////
 
-// IControlLimits2
+// IControlLimits
 bool CanBusMotionControl::setVelLimitsRaw(int axis, double min, double max)
 {
     if (!(axis >= 0 && axis <= (CAN_MAX_CARDS - 1) * 2))

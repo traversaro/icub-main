@@ -16,6 +16,7 @@
  * Public License for more details
 */
 
+#include <string>
 #include <sstream>
 #include <cmath>
 
@@ -99,7 +100,7 @@ void SmithPredictor::configure(const Property &options, iKinChain &chain)
 
             ostringstream entry;
             entry<<"joint_"<<j;
-            ConstString entry_str(entry.str().c_str());
+            string entry_str(entry.str());
             if (options.check(entry_str))
             {
                 if (Bottle *params=options.find(entry_str).asList())
